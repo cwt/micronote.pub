@@ -19,7 +19,7 @@ bcrypt
 mf2py
 passlib
 git+https://github.com/erikriver/opengraph.git
-git+https://github.com/bashell-com/little-boxes.git
+hg+https://hg.sr.ht/~cwt/little-boxes
 pyyaml
 pillow
 cachetools
