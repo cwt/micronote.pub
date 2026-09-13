@@ -1,5 +1,6 @@
 *.sw[op]
 key_*.pem
+scripts/.stub_key_*.pem
 data/*
 config/*
 static/media/*

@@ -74,13 +74,124 @@ https: true
 pass: $2b$12$iW497g...
 ```
 
-### Deployment
+### Deployment with Docker or Podman
+
+Build the image (tagged `micronote:latest`):
 
 ```shell
-$ docker-compose up -d
+$ make docker
+# ...or directly:
+$ docker build -t micronote:latest .
 ```
 
-This starts the web app and the background worker sharing one SQLite file under `./data`.
+Point the `.env` file at your directories (defaults work for a first run):
+
+```
+WEB_PORT=5005
+CONFIG_DIR=./config
+DATA_DIR=./data
+```
+
+`CONFIG_DIR` must contain your `me.yml` (see Configuration above); the
+secret keys are generated on first boot. Then start both services —
+the web app and the background worker share one SQLite file, so they
+must mount the **same** `DATA_DIR`:
+
+```shell
+$ docker compose up -d
+$ docker compose ps
+$ docker compose logs -f web worker
+```
+
+Podman works the same way — just swap the binary:
+
+```shell
+$ podman build -t micronote:latest .
+$ podman compose up -d
+```
+
+Notes for Podman / rootless / RHEL hosts:
+
+- Rootless Podman can bind port 5005 without extra privileges (ports
+  above 1024 need no special setup).
+- On SELinux systems (RHEL 8/9) the bind mounts need relabeling or the
+  containers won't be able to read `config/` and `data/` — either use
+  `:Z` suffixes on the volumes (e.g. `"${CONFIG_DIR}:/app/config:Z"`) or
+  run `chcon -Rt container_file_t config data` once.
+- `podman-compose` (the separate Python project) also accepts these
+  files; `podman compose` (built into Podman 4.1+) is preferred.
+
+### Manual run behind nginx (SSL termination on nginx)
+
+The app itself only speaks plain HTTP; TLS ends at nginx. Absolute
+URLs are built from `domain` / `https: true` in `me.yml`, so no
+proxy-fix configuration is needed — just forward the original `Host`.
+
+1. Configure `config/me.yml` with your public domain and `https: true`,
+   then start both processes (indexes are created by `run.sh`):
+
+```shell
+$ ./run.sh    # gunicorn on 0.0.0.0:5005
+$ ./worker.sh # background federation worker (run exactly one)
+```
+
+For a persistent install, wrap each in systemd. Minimal example
+(`/etc/systemd/system/micronote-web.service`, and likewise
+`micronote-worker.service` with `ExecStart=.../worker.sh`):
+
+```ini
+[Unit]
+Description=micronote web
+After=network.target
+
+[Service]
+User=micronote
+WorkingDirectory=/srv/micronote.pub
+ExecStart=/srv/micronote.pub/run.sh
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+2. Proxy through nginx with certbot-managed certificates:
+
+```shell
+$ sudo dnf install nginx python3-certbot-nginx   # or apt install ...
+$ sudo certbot --nginx -d your-domain.tld
+```
+
+Then make sure the nginx server block looks like this (certbot
+writes the `ssl_certificate` lines for you):
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name your-domain.tld;
+
+    ssl_certificate     /etc/letsencrypt/live/your-domain.tld/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/your-domain.tld/privkey.pem;
+
+    # uploads are capped at 10 MB by the app
+    client_max_body_size 12m;
+
+    location / {
+        proxy_pass http://127.0.0.1:5005;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+server {
+    listen 80;
+    server_name your-domain.tld;
+    return 301 https://$host$request_uri;
+}
+```
+
+`Host` must be forwarded unchanged — remote servers address your
+actor/inbox by that name, and HTTP Signatures cover it.
 
 ## Development
 
@@ -103,6 +214,43 @@ Local runs need indexes once (Docker does this via `run.sh`):
 ```shell
 $ python -c "import config; config.create_indexes()"
 ```
+
+Use the fixture identity for local work (no need to invent one):
+
+```shell
+$ cp tests/fixtures/me.yml config/me.yml
+```
+
+### Simulating a remote node locally
+
+`scripts/stub_remote.py` is a fake second ActivityPub server and
+`scripts/ap_matrix.py` drives its fixtures through your instance —
+no real fediverse involved. Your instance **must** run with
+`MICRONOTE_DEBUG=1` so it accepts plain-HTTP fetches from the stub,
+and eager mode keeps everything deterministic:
+
+```shell
+# terminal 1: your instance (eager = no worker needed)
+$ MICRONOTE_TASK_EAGER=1 FLASK_DEBUG=1 MICRONOTE_DEBUG=1 \
+  FLASK_APP=app.py flask run -p 5005 --with-threads
+
+# terminal 2: the fake remote node
+$ python scripts/stub_remote.py --port 5006
+
+# terminal 3: run the matrix (follow, note, like, unsigned fallback)
+$ python scripts/ap_matrix.py all
+```
+
+What gets exercised: a signed remote Follow (expect an auto-Accept
+delivered back, with its HTTP Signature strictly verified by the
+stub), a signed remote note (expect the stream flag in the DB and no
+outbound delivery), a signed Like on a local note (expect the
+counter), and an unsigned Follow (expect acceptance via the
+fetch-fallback path). Single cases run as
+`python scripts/ap_matrix.py follow` (also `create`, `like`,
+`unsigned-follow`); `--peer`/`--stub` override the default
+`localhost:5005`/`localhost:5006`. The full harness spec lives in
+`docs/migration.md` (Phase 7).
 
 ## API
 

@@ -2,7 +2,7 @@
 # provides the background worker against the same ./data SQLite file.
 services:
   worker:
-    image: microblogpub:latest
+    image: micronote:latest
     command: 'python worker.py'
     volumes:
      - "./config:/app/config"

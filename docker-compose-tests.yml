@@ -1,6 +1,6 @@
 services:
   web:
-    image: 'microblogpub:latest'
+    image: 'micronote:latest'
     ports:
      - "${WEB_PORT}:5005"
     volumes:
@@ -10,7 +10,7 @@ services:
     environment:
      - MICRONOTE_DEBUG=1
   worker:
-    image: 'microblogpub:latest'
+    image: 'micronote:latest'
     command: 'python worker.py'
     volumes:
      - "${CONFIG_DIR}:/app/config"

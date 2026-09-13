@@ -1,6 +1,7 @@
 syntax: glob
 *.sw[op]
 key_*.pem
+scripts/.stub_key_*.pem
 data/*
 config/*
 !config/me.sample.yml
