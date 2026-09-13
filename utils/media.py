@@ -99,18 +99,13 @@ class MediaCache:
         )
 
     def get_file(self, url: str, size: int | None, kind: Kind) -> GridOut | None:
-        # NOTE: NeoSQLite 1.16.1 GridOutCursor silently drops dotted
-        # "metadata.*" filters, so narrow by filename (a supported
-        # top-level key) and match url/size/kind in Python instead.
-        found = self._bucket.find({"filename": url})
+        found = self._bucket.find({
+            "metadata.url": url,
+            "metadata.size": size,
+            "metadata.kind": kind.value,
+        })
         for grid_out in found:
-            metadata = grid_out.metadata or {}
-            if (
-                metadata.get("url") == url
-                and metadata.get("size") == size
-                and metadata.get("kind") == kind.value
-            ):
-                return grid_out
+            return grid_out
         return None
 
     def get_media(self, file_id: Any) -> GridOut | None:
