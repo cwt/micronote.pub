@@ -1,15 +1,13 @@
 import logging
 
-from bs4 import BeautifulSoup
-from active_boxes import activitypub as ap
-from active_boxes.errors import NotAnActivityError
-from active_boxes.urlutils import check_url
-from active_boxes.urlutils import is_url_valid
 import opengraph
 import requests
+from active_boxes import activitypub as ap
+from active_boxes.errors import NotAnActivityError
+from active_boxes.urlutils import check_url, is_url_valid
+from bs4 import BeautifulSoup
 
 from .lookup import lookup
-
 
 logger = logging.getLogger(__name__)
 
@@ -33,21 +31,21 @@ def links_from_note(note):
 
 def fetch_og_metadata(user_agent, links):
     res = []
-    for l in links:
-        check_url(l)
+    for link in links:
+        check_url(link)
 
         # Remove any AP actor from the list
         try:
-            p = lookup(l)
+            p = lookup(link)
             if p.has_type(ap.ACTOR_TYPES):
                 continue
         except NotAnActivityError:
             pass
 
-        r = requests.get(l, headers={"User-Agent": user_agent}, timeout=15)
+        r = requests.get(link, headers={"User-Agent": user_agent}, timeout=15)
         r.raise_for_status()
-        if not r.headers.get("content-type").startswith("text/html"):
-            logger.debug(f"skipping {l}")
+        if not (r.headers.get("content-type") or "").startswith("text/html"):
+            logger.debug(f"skipping {link}")
             continue
 
         r.encoding = 'UTF-8'
@@ -57,7 +55,7 @@ def fetch_og_metadata(user_agent, links):
                 html=BeautifulSoup(html, 'html5lib')
             ))
         except Exception:
-            logger.exception(f"failed to parse {l}")
+            logger.exception(f"failed to parse {link}")
             continue
         if data.get("url"):
             res.append(data)

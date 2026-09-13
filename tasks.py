@@ -1,16 +1,12 @@
-from datetime import datetime
-from datetime import timezone
 import logging
 import os
+from datetime import UTC, datetime
 
 from active_boxes import activitypub as ap
 
 import activitypub
 from activitypub import Box
-from config import BASE_URL
-from config import DB
-from config import ID
-from config import ME
+from config import BASE_URL, DB, ID, ME
 
 log = logging.getLogger(__name__)
 
@@ -41,7 +37,7 @@ def enqueue_job(job_type, iri=None, payload=None, to=None, also_cache_attachment
         "also_cache_attachments": also_cache_attachments,
         "status": STATUS_PENDING,
         "attempts": 0,
-        "next_run": datetime.now(timezone.utc),
+        "next_run": datetime.now(UTC),
         "error": None,
     }
     DB.jobs.insert_one(job)

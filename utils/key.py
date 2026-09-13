@@ -1,6 +1,6 @@
 import binascii
 import os
-from typing import Callable
+from collections.abc import Callable
 
 from active_boxes.key import Key
 

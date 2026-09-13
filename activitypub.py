@@ -1,36 +1,21 @@
-from datetime import datetime
-from datetime import timezone
-from enum import Enum
 import json
 import logging
 import os
+from datetime import UTC, datetime
+from enum import Enum
 from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
 
-from cachetools import LRUCache
-from feedgen.feed import FeedGenerator
-from html2text import html2text
 from active_boxes import activitypub as ap
 from active_boxes import strtobool
 from active_boxes.activitypub import _to_list
 from active_boxes.backend import Backend
-from active_boxes.errors import ActivityGoneError
-from active_boxes.errors import Error
-from active_boxes.errors import NotAnActivityError
+from active_boxes.errors import ActivityGoneError, Error, NotAnActivityError
+from cachetools import LRUCache
+from feedgen.feed import FeedGenerator
+from html2text import html2text
 from neosqlite.objectid import ObjectId
 
-from config import BASE_URL
-from config import DB
-from config import DB_NAME
-from config import EXTRA_INBOXES
-from config import ID
-from config import ME
-from config import USERNAME
-from config import USER_AGENT
-from config import create_db_client
-
+from config import BASE_URL, DB, DB_NAME, EXTRA_INBOXES, ID, ME, USER_AGENT, USERNAME, create_db_client
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +25,8 @@ ACTORS_CACHE = LRUCache(maxsize=256)
 def _json_default(value):
     if isinstance(value, datetime):
         if value.tzinfo is None:
-            value = value.replace(tzinfo=timezone.utc)
-        return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+            value = value.replace(tzinfo=UTC)
+        return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
     raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
 
 
@@ -54,7 +39,7 @@ def json_dumps(data) -> str:
     return json.dumps(data, default=_json_default)
 
 
-def _actor_to_meta(actor: ap.BaseActivity, with_inbox=False) -> Dict[str, Any]:
+def _actor_to_meta(actor: ap.BaseActivity, with_inbox=False) -> dict[str, Any]:
     meta = {
         "id": actor.id,
         "url": actor.url,
@@ -103,7 +88,7 @@ class MicroblogPubBackend(Backend):
     """Implements a Little Boxes backend, backed by NeoSQLite."""
 
     def __init__(self, *args, **kwargs):
-        super(MicroblogPubBackend, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.DB = create_db_client(DB_NAME)
 
     def debug_mode(self) -> bool:
@@ -113,7 +98,7 @@ class MicroblogPubBackend(Backend):
         """Setup a custom user agent."""
         return USER_AGENT
 
-    def extra_inboxes(self) -> List[str]:
+    def extra_inboxes(self) -> list[str]:
         return EXTRA_INBOXES
 
     def base_url(self) -> str:
@@ -140,7 +125,7 @@ class MicroblogPubBackend(Backend):
             }
         )
 
-    def followers(self) -> List[str]:
+    def followers(self) -> list[str]:
         q = {
             "box": Box.INBOX.value,
             "type": ap.ActivityType.FOLLOW.value,
@@ -148,7 +133,7 @@ class MicroblogPubBackend(Backend):
         }
         return [doc["activity"]["actor"] for doc in self.DB.activities.find(q)]
 
-    def followers_as_recipients(self) -> List[str]:
+    def followers_as_recipients(self) -> list[str]:
         q = {
             "box": Box.INBOX.value,
             "type": ap.ActivityType.FOLLOW.value,
@@ -162,7 +147,7 @@ class MicroblogPubBackend(Backend):
 
         return list(set(recipients))
 
-    def following(self) -> List[str]:
+    def following(self) -> list[str]:
         q = {
             "box": Box.OUTBOX.value,
             "type": ap.ActivityType.FOLLOW.value,
@@ -171,8 +156,8 @@ class MicroblogPubBackend(Backend):
         return [doc["activity"]["object"] for doc in self.DB.activities.find(q)]
 
     def parse_collection(
-        self, payload: Optional[Dict[str, Any]]=None, url: Optional[str]=None
-    ) -> List[str]:
+        self, payload: dict[str, Any] | None=None, url: str | None=None
+    ) -> list[str]:
         """Resolve/fetch a `Collection`/`OrderedCollection`."""
         # Resolve internal collections via MongoDB directly
         if url == ID + "/followers":
@@ -195,7 +180,7 @@ class MicroblogPubBackend(Backend):
             )
         )
 
-    def _fetch_iri(self, iri: str) -> Optional[ap.ObjectType]:
+    def _fetch_iri(self, iri: str) -> ap.ObjectType | None:
         if iri == ME["id"]:
             return ME
 
@@ -441,9 +426,9 @@ class MicroblogPubBackend(Backend):
         obj = _update._data["object"]
 
         update_prefix = "activity.object."
-        update: Dict[str, Any] = {"$set": dict(), "$unset": dict()}
+        update: dict[str, Any] = {"$set": dict(), "$unset": dict()}
         update["$set"][f"{update_prefix}updated"] = (
-            datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+            datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
         )
         for k, v in obj.items():
             if k in ["id", "type"]:
@@ -471,7 +456,7 @@ class MicroblogPubBackend(Backend):
 
     @ensure_it_is_me
     def _handle_replies_delete(
-        self, as_actor: ap.Person, in_reply_to: Optional[str]
+        self, as_actor: ap.Person, in_reply_to: str | None
     ) -> None:
         if not in_reply_to:
             pass
@@ -562,7 +547,7 @@ def gen_feed():
     return fg
 
 
-def json_feed(path: str) -> Dict[str, Any]:
+def json_feed(path: str) -> dict[str, Any]:
     """JSON Feed (https://jsonfeed.org/) document."""
     data = []
     for item in DB.activities.find(
@@ -598,13 +583,13 @@ def json_feed(path: str) -> Dict[str, Any]:
 
 
 def build_inbox_json_feed(
-    path: str, request_cursor: Optional[str]=None
-) -> Dict[str, Any]:
+    path: str, request_cursor: str | None=None
+) -> dict[str, Any]:
     """Build a JSON feed from the inbox activities."""
     data = []
     cursor = None
 
-    q: Dict[str, Any] = {
+    q: dict[str, Any] = {
         "type": "Create",
         "meta.deleted": False,
         "box": Box.INBOX.value,

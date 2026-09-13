@@ -1,24 +1,16 @@
 import binascii
-from datetime import datetime
 import json
 import os
-from urllib.parse import urlencode
+from datetime import datetime
+from urllib.parse import urlencode, urlparse
 
-from flask import Response
-from flask import abort
-from flask import current_app
-from flask import redirect
-from flask import render_template
-from flask import request
-from flask import session
-from flask import url_for
 import flask
-from itsdangerous import BadSignature
 import mf2py
+from flask import Response, abort, current_app, redirect, render_template, request, session, url_for
+from itsdangerous import BadSignature
 from neosqlite import DESCENDING
 
-from config import DB
-from config import JWT
+from config import DB, ID, JWT
 from utils.login import login_required
 
 blueprint = flask.Blueprint('indieauth', __name__, template_folder='templates')
@@ -61,6 +53,12 @@ def get_client_id_data(url):
     return dict(logo=None, name=url, url=url)
 
 
+def _same_origin(url_a, url_b) -> bool:
+    parsed_a = urlparse(url_a)
+    parsed_b = urlparse(url_b)
+    return (parsed_a.scheme, parsed_a.netloc) == (parsed_b.scheme, parsed_b.netloc)
+
+
 @blueprint.route("/indieauth/flow", methods=["POST"])
 @login_required
 def indieauth_flow():
@@ -77,11 +75,18 @@ def indieauth_flow():
     auth.update(code=code, verified=False)
     current_app.logger.debug(auth)
     if not auth["redirect_uri"]:
-        abort(500)
+        abort(400)
+
+    if auth["me"] != ID:
+        abort(400)
+
+    # The redirect target must belong to the verified client_id page,
+    # otherwise this endpoint becomes an open redirector.
+    if not _same_origin(auth["redirect_uri"], auth["client_id"]):
+        abort(400)
 
     DB.indieauth.insert_one(auth)
 
-    # FIXME(tsileo): fetch client ID and validate redirect_uri
     red = f'{auth["redirect_uri"]}?code={code}&state={auth["state"]}&me={auth["me"]}'
     return redirect(red)
 
@@ -93,7 +98,7 @@ def indieauth_endpoint():
             return redirect(url_for("admin.admin_login", next=request.url))
 
         me = request.args.get("me")
-        # FIXME(tsileo): ensure me == ID
+        # me == ID is enforced in indieauth_flow before any code is issued.
         client_id = request.args.get("client_id")
         redirect_uri = request.args.get("redirect_uri")
         state = request.args.get("state", "")

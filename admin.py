@@ -1,26 +1,15 @@
 import json
 from urllib.parse import urlparse
 
-from flask import abort
-from flask import current_app
-from flask import redirect
-from flask import render_template
-from flask import request
-from flask import session
-from flask import url_for
-import flask
-from flask_wtf.csrf import CSRFProtect
-from active_boxes import activitypub as ap
-from active_boxes.activitypub import ActivityType
-from active_boxes.activitypub import get_backend
 import bcrypt
+import flask
+from active_boxes import activitypub as ap
+from active_boxes.activitypub import ActivityType, get_backend
+from flask import abort, current_app, redirect, render_template, request, session, url_for
+from flask_wtf.csrf import CSRFProtect
 
 from activitypub import Box
-from config import BASE_URL
-from config import DB
-from config import DOMAIN
-from config import PASS
-from config import USERNAME
+from config import BASE_URL, DB, DOMAIN, PASS, USERNAME
 from utils.headers import noindex
 from utils.login import login_required
 from utils.lookup import lookup
@@ -225,13 +214,15 @@ def admin_logout():
 @blueprint.route("/login", methods=["POST", "GET"])
 @noindex
 def admin_login():
-    from utils.webauthn import clear_state
-    from utils.webauthn import credential_options
-    from utils.webauthn import get_server
-    from utils.webauthn import load_state
-    from utils.webauthn import save_state
-    from utils.webauthn import stored_credentials
-    from utils.webauthn import update_sign_count
+    from utils.webauthn import (
+        clear_state,
+        credential_options,
+        get_server,
+        load_state,
+        save_state,
+        stored_credentials,
+        update_sign_count,
+    )
 
     if session.get("logged_in") is True:
         return redirect(url_for(".admin_notifications"))

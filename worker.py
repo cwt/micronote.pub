@@ -4,44 +4,23 @@ Single process (run one, not per web worker). Enqueued by tasks.py,
 claimed with find_one_and_update, retried with exponential backoff.
 """
 
-from datetime import datetime
-from datetime import timedelta
-from datetime import timezone
 import json
 import logging
 import random
 import time
+from datetime import UTC, datetime, timedelta
 
 import requests
 from active_boxes import activitypub as ap
-from active_boxes.errors import BadActivityError
-from active_boxes.errors import ActivityGoneError
-from active_boxes.errors import ActivityNotFoundError
-from active_boxes.errors import NotAnActivityError
+from active_boxes.errors import ActivityGoneError, ActivityNotFoundError, BadActivityError, NotAnActivityError
 from active_boxes.httpsig import HTTPSigAuth
 from active_boxes.linked_data_sig import generate_signature
 from requests.exceptions import HTTPError
 
 import activitypub
-from activitypub import Box
 import tasks
-from config import BASE_URL
-from config import DB
-from config import HEADERS
-from config import ID
-from config import KEY
-from config import ME
-from config import MEDIA_CACHE
-from config import USER_AGENT
-from config import create_db_connection
-from tasks import MAX_RETRIES
-from tasks import MY_PERSON
-from tasks import STATUS_FAILED
-from tasks import STATUS_PENDING
-from tasks import STATUS_PROCESSING
-from tasks import back
-from tasks import enqueue_job
-from tasks import log
+from config import BASE_URL, DB, HEADERS, ID, KEY, MEDIA_CACHE, USER_AGENT, create_db_connection
+from tasks import MAX_RETRIES, MY_PERSON, STATUS_FAILED, STATUS_PENDING, STATUS_PROCESSING, back, enqueue_job, log
 from utils import opengraph
 from utils.media import Kind
 
@@ -339,7 +318,7 @@ def finish_post_to_inbox(job) -> None:
         except Exception:
             log.exception("failed to invalidate cache")
     except (ActivityGoneError, ActivityNotFoundError, NotAnActivityError):
-        log.exception(f"no retry")
+        log.exception("no retry")
     except Exception:
         log.exception(f"failed to finish post to inbox for {iri}")
         raise
@@ -382,7 +361,7 @@ def finish_post_to_outbox(job) -> None:
             log.debug(f"posting to {recp}")
             enqueue_job("post_to_remote_inbox", payload=payload, to=recp)
     except (ActivityGoneError, ActivityNotFoundError):
-        log.exception(f"no retry")
+        log.exception("no retry")
     except Exception:
         log.exception(f"failed to post to remote inbox for {iri}")
         raise
@@ -465,7 +444,7 @@ def run_job(doc) -> None:
                 {"$set": {"status": STATUS_FAILED, "attempts": attempts, "error": repr(err)}},
             )
         else:
-            next_run = datetime.now(timezone.utc) + timedelta(seconds=retry_delay(attempts))
+            next_run = datetime.now(UTC) + timedelta(seconds=retry_delay(attempts))
             DB.jobs.update_one(
                 {"_id": doc["_id"]},
                 {"$set": {
@@ -485,7 +464,7 @@ def drain_jobs(limit=100, max_passes=100):
     processed = 0
     for _ in range(max_passes):
         claimed_any = False
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         due = DB.jobs.find(
             {"status": STATUS_PENDING, "next_run": {"$lte": now}}, limit=limit
         ).sort("next_run", 1)

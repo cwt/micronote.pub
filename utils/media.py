@@ -1,17 +1,17 @@
 import base64
+import mimetypes
 from enum import Enum
 from gzip import GzipFile
 from io import BytesIO
-import mimetypes
 from typing import Any
-from typing import Optional
 
+import piexif
+import requests
 from neosqlite.gridfs import GridFSBucket
 from neosqlite.gridfs.errors import NoFile
 from neosqlite.gridfs.grid_file import GridOut
 from PIL import Image
-import piexif
-import requests
+
 
 def load(url, user_agent):
     """Initializes a `PIL.Image` from the URL."""
@@ -70,7 +70,7 @@ def _gzip_image(img) -> bytes:
         return buf.getvalue()
 
 
-class MediaCache(object):
+class MediaCache:
     def __init__(self, connection_factory, user_agent: str) -> None:
         self._connection_factory = connection_factory
         self.user_agent = user_agent
@@ -80,7 +80,7 @@ class MediaCache(object):
         # Resolved per call: buckets hold their thread's SQLite handle.
         return GridFSBucket(self._connection_factory().db)
 
-    def _store(self, data: bytes, url: str, size: Optional[int], content_type: Optional[str], kind: Kind):
+    def _store(self, data: bytes, url: str, size: int | None, content_type: str | None, kind: Kind):
         """Stores gzipped bytes, with lookup metadata attached."""
         return self._bucket.upload_from_stream(
             filename=url,
@@ -93,7 +93,7 @@ class MediaCache(object):
             },
         )
 
-    def get_file(self, url: str, size: Optional[int], kind: Kind) -> Optional[GridOut]:
+    def get_file(self, url: str, size: int | None, kind: Kind) -> GridOut | None:
         found = self._bucket.find({
             "metadata.url": url,
             "metadata.size": size,
@@ -103,7 +103,7 @@ class MediaCache(object):
             return grid_out
         return None
 
-    def get_media(self, file_id: Any) -> Optional[GridOut]:
+    def get_media(self, file_id: Any) -> GridOut | None:
         try:
             return self._bucket.open_download_stream(file_id)
         except NoFile:

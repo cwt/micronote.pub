@@ -1,34 +1,24 @@
-from datetime import datetime
-from datetime import timedelta
-from datetime import timezone
-from typing import Dict
-from typing import Optional
-from typing import Tuple
 import urllib
+from datetime import UTC, datetime, timedelta
 from urllib.parse import urlparse
 
 import bleach
+import flask
+import timeago
+from active_boxes import activitypub as ap
+from active_boxes.activitypub import _to_list, get_backend
+from active_boxes.errors import ActivityGoneError, ActivityNotFoundError
 from dateutil import parser
 from flask import current_app
-import flask
 from html2text import html2text
-from active_boxes import activitypub as ap
-from active_boxes.activitypub import _to_list
-from active_boxes.activitypub import get_backend
-from active_boxes.errors import ActivityGoneError
-from active_boxes.errors import ActivityNotFoundError
-import timeago
 
-from config import CDN_URL
-from config import ID
-from config import MEDIA_CACHE
-from config import TIMEZONE
+from config import CDN_URL, ID, MEDIA_CACHE, TIMEZONE
 from utils.emoji import flexmoji
 from utils.media import Kind
 
 blueprint = flask.Blueprint('filters', __name__, template_folder='templates')
 
-_GRIDFS_CACHE: Dict[Tuple[Kind, str, Optional[int]], str] = {}
+_GRIDFS_CACHE: dict[tuple[Kind, str, int | None], str] = {}
 
 # HTML/templates helper
 ALLOWED_TAGS = [
@@ -61,7 +51,7 @@ ALLOWED_TAGS = [
 def _clean_html(html):
     try:
         return bleach.clean(html, tags=ALLOWED_TAGS)
-    except:
+    except Exception:
         return ""
 
 
@@ -169,9 +159,9 @@ def url_or_id(d):
 def get_url(u):
     current_app.logger.debug(f"GET_URL({u!r})")
     if isinstance(u, list):
-        for l in u:
-            if l.get("mimeType") == "text/html":
-                u = l
+        for link in u:
+            if link.get("mimeType") == "text/html":
+                u = link
     if isinstance(u, dict):
         return u["href"]
     elif isinstance(u, str):
@@ -216,7 +206,7 @@ def format_time(val):
 def format_timeago(val):
     if val:
         dt = val if isinstance(val, datetime) else parser.parse(val)
-        return timeago.format(dt, datetime.now(timezone.utc))
+        return timeago.format(dt, datetime.now(UTC))
     return val
 
 

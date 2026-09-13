@@ -1,21 +1,18 @@
-from datetime import datetime
-from enum import Enum
 import mimetypes
 import os
 import subprocess
 import threading
+from datetime import datetime
+from enum import Enum
 
-from itsdangerous import URLSafeTimedSerializer
-from active_boxes import strtobool
-from active_boxes.activitypub import DEFAULT_CTX
-from neosqlite import ASCENDING
-from neosqlite import Connection
 import requests
 import yaml
+from active_boxes import strtobool
+from active_boxes.activitypub import DEFAULT_CTX
+from itsdangerous import URLSafeTimedSerializer
+from neosqlite import ASCENDING, Connection
 
-from utils.key import KEY_DIR
-from utils.key import get_key
-from utils.key import get_secret_key
+from utils.key import KEY_DIR, get_key, get_secret_key
 from utils.media import MediaCache
 
 
@@ -55,7 +52,7 @@ try:
                 ["hg", "id", "-i"]
             ).split()[0].decode("utf-8")
         )
-except:
+except Exception:
     VERSION = "-"
 
 DEBUG_MODE = strtobool(os.getenv("MICRONOTE_DEBUG", "false"))

@@ -1,5 +1,5 @@
-from flask import Response
 import flask
+from flask import Response
 
 import activitypub
 

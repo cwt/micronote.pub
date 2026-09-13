@@ -1,6 +1,5 @@
 """Removes duplicate FOLLOW activities. Run explicitly: python dedup.py"""
 
-from typing import List
 
 from active_boxes.activitypub import ActivityType
 

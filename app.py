@@ -37,6 +37,7 @@ from config import (
     ME,
     MEDIA_CACHE,
     NAME,
+    SCHEME,
     SUMMARY,
     THEME_COLOR,
     USERNAME,
@@ -60,7 +61,13 @@ app.register_blueprint(feeds.blueprint)
 app.register_blueprint(filters.blueprint)
 app.register_blueprint(indieauth.blueprint)
 app.secret_key = get_secret_key("flask")
-app.config.update(WTF_CSRF_CHECK_DEFAULT=False)
+app.config.update(
+    WTF_CSRF_CHECK_DEFAULT=False,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=SCHEME == "https",
+    MAX_CONTENT_LENGTH=10 * 1024 * 1024,
+)
 app.jinja_env.trim_blocks = True
 app.jinja_env.lstrip_blocks = True
 app.jinja_env.strip_trailing_newlines = False

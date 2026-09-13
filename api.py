@@ -1,40 +1,22 @@
+import mimetypes
 from functools import wraps
 from io import BytesIO
-import json
-import mimetypes
 
-from flask import Response
-from flask import abort
-from flask import current_app
-from flask import jsonify as flask_jsonify
-from flask import redirect
-from flask import request
-from flask import session
 import flask
+from active_boxes import activitypub as ap
+from active_boxes.activitypub import ActivityType, get_backend
+from active_boxes.content_helper import parse_markdown
+from active_boxes.errors import ActivityNotFoundError, NotFromOutboxError
+from flask import Response, abort, current_app, redirect, request, session
+from flask import jsonify as flask_jsonify
 from flask_wtf.csrf import CSRFProtect
 from itsdangerous import BadSignature
-from active_boxes import activitypub as ap
-from active_boxes.activitypub import ActivityType
-from active_boxes.activitypub import get_backend
-from active_boxes.content_helper import parse_markdown
-from active_boxes.errors import ActivityNotFoundError
-from active_boxes.errors import NotFromOutboxError
 from werkzeug.utils import secure_filename
 
-from activitypub import Box
 import activitypub
-from config import ADMIN_API_KEY
-from config import BASE_URL
-from config import CDN_URL
-from config import DB
-from config import DEBUG_MODE
-from config import ID
-from config import IMAGE_MAX_SIZE
-from config import JWT
-from config import ME
-from config import MEDIA_CACHE
-from config import _drop_db
 import tasks
+from activitypub import Box
+from config import ADMIN_API_KEY, BASE_URL, CDN_URL, DB, DEBUG_MODE, ID, IMAGE_MAX_SIZE, JWT, ME, MEDIA_CACHE, _drop_db
 from utils.emoji import flexmoji
 from utils.login import login_required
 
@@ -107,13 +89,13 @@ def _user_api_get_note(from_outbox: bool=False):
     current_app.logger.info(f"fetching {oid}")
     try:
         note = ap.parse_activity(get_backend().fetch_iri_sync(oid), expected=ActivityType.NOTE)
-    except:
+    except Exception:
         try:
             note = ap.parse_activity(get_backend().fetch_iri_sync(oid), expected=ActivityType.VIDEO)
-        except:
+        except Exception as err:
             raise ActivityNotFoundError(
                 "Expected Note or Video ActivityType, but got something else"
-            )
+            ) from err
     if from_outbox and not note.id.startswith(ID):
         raise NotFromOutboxError(
             f"cannot load {note.id}, id must be owned by the server"
@@ -214,9 +196,9 @@ def api_undo():
     return _user_api_response(activity=undo_id)
 
 
-def without_id(l):
+def without_id(docs):
     out = []
-    for d in l:
+    for d in docs:
         if "_id" in d:
             del d["_id"]
         out.append(d)

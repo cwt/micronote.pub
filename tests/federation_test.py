@@ -1,11 +1,9 @@
 import os
 import time
-from typing import List
-from typing import Tuple
 
 import requests
-from html2text import html2text
 from active_boxes.collection import parse_collection_sync as parse_collection
+from html2text import html2text
 
 
 def resp2plaintext(resp):
@@ -13,7 +11,7 @@ def resp2plaintext(resp):
     return html2text(resp.text)
 
 
-class Instance(object):
+class Instance:
     """Test instance wrapper."""
 
     def __init__(self, name, host_url, docker_url=None):
@@ -153,7 +151,7 @@ class Instance(object):
         time.sleep(self._create_delay)
         return resp.json().get("activity")
 
-    def followers(self) -> List[str]:
+    def followers(self) -> list[str]:
         """Parses the followers collection."""
         resp = requests.get(
             f"{self.host_url}/followers",
@@ -205,7 +203,7 @@ class Instance(object):
         return resp.json()
 
 
-def _instances() -> Tuple[Instance, Instance]:
+def _instances() -> tuple[Instance, Instance]:
     """Initializes the client for the two test instances."""
     instance1 = Instance(
         "instance1", "http://localhost:5006", "http://instance1_web_1:5005"
