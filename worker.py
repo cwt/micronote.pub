@@ -12,6 +12,7 @@ from datetime import UTC, datetime, timedelta
 
 import requests
 from active_boxes import activitypub as ap
+from active_boxes.activitypub import _to_list
 from active_boxes.errors import ActivityGoneError, ActivityNotFoundError, BadActivityError, NotAnActivityError
 from active_boxes.httpsig import HTTPSigAuth
 from active_boxes.linked_data_sig import generate_signature
@@ -58,36 +59,30 @@ def process_new_activity(job) -> None:
 
         elif activity.has_type(ap.ActivityType.CREATE):
             note = activity.get_object_sync()
-            # Make the note part of the stream if it's not a reply, or if it's a local reply
+            # The note joins the stream if it starts a thread or continues a local one.
             if not note.inReplyTo or note.inReplyTo.startswith(ID):
                 tag_stream = True
 
             if note.inReplyTo:
                 try:
-                    reply = ap.fetch_remote_activity_sync(note.inReplyTo)
-                    if (
-                        reply.id.startswith(ID) or reply.has_mention(ID)
-                    ) and activity.is_public():
-                        # The reply is public "local reply", forward the reply (i.e. the original activity) to the
-                        # original recipients
-                        should_forward = True
+                    # Fetch for effect: OStatus notices raise NotAnActivityError
+                    # (dropped below); gone targets raise through to the outer
+                    # handler, which drops the activity without flagging it.
+                    ap.fetch_remote_activity_sync(note.inReplyTo)
                 except NotAnActivityError:
-                    # Most likely a reply to an OStatus notce
+                    # Most likely a reply to an OStatus notice; don't keep it.
                     should_delete = True
 
-            # (partial) Ghost replies handling
-            # [X] This is the first time the server has seen this Activity.
-            should_forward = False
-            local_followers = ID + "/followers"
-            for field in ["to", "cc"]:
-                if field in activity._data:
-                    if local_followers in activity._data[field]:
-                        # [X] The values of to, cc, and/or audience contain a Collection owned by the server.
+            # Forward a reply to our followers only when the author explicitly
+            # addressed our followers collection AND the reply continues a local
+            # thread (ActivityPub inbox-forwarding criteria; avoids amplifying
+            # mentions that were never addressed to our followers).
+            if note.inReplyTo and note.inReplyTo.startswith(ID):
+                local_followers = ID + "/followers"
+                for field in ["to", "cc"]:
+                    if local_followers in _to_list(activity._data.get(field, [])):
                         should_forward = True
-
-            # [X] The values of inReplyTo, object, target and/or tag are objects owned by the server
-            if not (note.inReplyTo and note.inReplyTo.startswith(ID)):
-                should_forward = False
+                        break
 
         elif activity.has_type(ap.ActivityType.DELETE):
             note = DB.activities.find_one(
