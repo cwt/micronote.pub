@@ -3,9 +3,9 @@ from functools import wraps
 from flask import make_response
 
 
-def add_response_headers(headers={}):
+def add_response_headers(headers=None):
     """This decorator adds the headers passed in to the response"""
-
+    headers = headers or {}
     def decorator(f):
 
         @wraps(f)

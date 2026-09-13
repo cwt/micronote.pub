@@ -13,7 +13,7 @@ from flask_wtf.csrf import CSRFProtect
 from active_boxes import activitypub as ap
 from active_boxes.activitypub import ActivityType
 from active_boxes.activitypub import get_backend
-from passlib.hash import bcrypt
+import bcrypt
 from u2flib_server import u2f
 
 from activitypub import Box
@@ -34,7 +34,7 @@ csrf = CSRFProtect(current_app)
 
 
 def verify_pass(pwd):
-    return bcrypt.verify(pwd, PASS)
+    return bcrypt.checkpw(pwd.encode("utf-8"), PASS.encode("utf-8"))
 
 
 @blueprint.route("/admin", methods=["GET"])

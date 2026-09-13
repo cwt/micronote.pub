@@ -443,7 +443,7 @@ class MicroblogPubBackend(Backend):
         update_prefix = "activity.object."
         update: Dict[str, Any] = {"$set": dict(), "$unset": dict()}
         update["$set"][f"{update_prefix}updated"] = (
-            datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+            datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
         )
         for k, v in obj.items():
             if k in ["id", "type"]:

@@ -1,8 +1,8 @@
-git+https://github.com/tsileo/little-boxes.git
+active-boxes==0.2.2
 pytest
 requests
 html2text
 pyyaml
-flake8
+ruff
 mypy
-black
+djlint

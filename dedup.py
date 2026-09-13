@@ -1,3 +1,5 @@
+"""Removes duplicate FOLLOW activities. Run explicitly: python dedup.py"""
+
 from typing import List
 
 from active_boxes.activitypub import ActivityType
@@ -6,27 +8,23 @@ from activitypub import Box
 from config import DB
 
 
-q1 = {"box": Box.OUTBOX.value, "type": ActivityType.FOLLOW.value, "meta.undo": False}
-followings = list()  # type: List[str]
-for doc in DB.activities.find(q1):
-    _id = doc['_id']
-    following = doc['activity']['object']
-    if following not in followings:
-        followings.append(following)
-        print(f'following: {following}')
-    else:
-        DB.activities.delete_one({'_id':_id})
-        print(f'duplicate: {following} -- deleted')
+def remove_duplicate_follows(box: str, field: str, label: str) -> None:
+    seen = list()  # type: List[str]
+    query = {"box": box, "type": ActivityType.FOLLOW.value, "meta.undo": False}
+    for doc in DB.activities.find(query):
+        target = doc["activity"][field]
+        if target not in seen:
+            seen.append(target)
+            print(f"{label}: {target}")
+        else:
+            DB.activities.delete_one({"_id": doc["_id"]})
+            print(f"duplicate: {target} -- deleted")
 
-q2 = {"box": Box.INBOX.value, "type": ActivityType.FOLLOW.value, "meta.undo": False}
-followers = list()  # type: List[str]
-for doc in DB.activities.find(q2):
-    _id = doc['_id']
-    follower = doc['activity']['actor']
-    if follower not in followers:
-        followers.append(follower)
-        print(f'follower: {follower}')
-    else:
-        DB.activities.delete_one({'_id':_id})
-        print(f'duplicate: {follower} -- deleted')
 
+def main() -> None:
+    remove_duplicate_follows(Box.OUTBOX.value, "object", "following")
+    remove_duplicate_follows(Box.INBOX.value, "actor", "follower")
+
+
+if __name__ == "__main__":
+    main()
