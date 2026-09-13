@@ -11,7 +11,6 @@ from active_boxes.activitypub import DEFAULT_CTX
 from neosqlite import ASCENDING
 from neosqlite import Connection
 import requests
-import sass
 import yaml
 
 from utils.key import KEY_DIR
@@ -98,15 +97,6 @@ with open(os.path.join(KEY_DIR, "me.yml")) as f:
         conf.get("image_max_size", {}).get("width", 1920),
         conf.get("image_max_size", {}).get("height", 1920)
     )
-
-SASS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sass")
-theme_css = f"$primary-color: {THEME_COLOR};\n"
-with open(os.path.join(SASS_DIR, f"{THEME_STYLE.value}.scss")) as f:
-    theme_css += f.read()
-    theme_css += "\n"
-with open(os.path.join(SASS_DIR, "base_theme.scss")) as f:
-    raw_css = theme_css + f.read()
-    CSS = sass.compile(string=raw_css, output_style="compressed")
 
 USER_AGENT = (
     f"{requests.utils.default_user_agent()} (microblog.pub/{VERSION}; +{BASE_URL})"

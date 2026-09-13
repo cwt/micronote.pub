@@ -1,0 +1,465 @@
+/* micronote.pub theme — plain CSS, no preprocessor.
+   Theme values come from :root[data-theme]; --primary-color can be
+   overridden per instance with a tiny inline rule (see layout.html). */
+
+:root[data-theme="light"] {
+  --background-color: #eee;
+  --color: #111;
+  --color-title-link: #333;
+  --color-light: #555;
+  --color-summary: #111;
+  --color-note-link: #333;
+  --color-menu-background: #ddd;
+  --primary-color: #1d781d;
+}
+
+:root[data-theme="dark"] {
+  --background-color: #060606;
+  --color: #808080;
+  --color-title-link: #fefefe;
+  --color-light: #bbb;
+  --color-summary: #ddd;
+  --color-note-link: #666;
+  --color-menu-background: #222;
+  --primary-color: #33ff00;
+}
+
+.note-container p:first-child {
+  margin-top: 0;
+}
+
+html, body {
+  height: 100%;
+}
+
+@media only screen and (max-width: 480px) {
+  #menu-item-following {
+    display: none;
+  }
+}
+
+body {
+  background-color: var(--background-color);
+  color: var(--color);
+  display: flex;
+  flex-direction: column;
+}
+
+.base-container {
+  flex: 1 0 auto;
+}
+
+.footer {
+  flex-shrink: 0;
+}
+
+a, h1, h2, h3, h4, h5, h6 {
+  color: var(--color-title-link);
+}
+
+a {
+  text-decoration: none;
+  word-break: normal;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.gold {
+  color: var(--primary-color);
+}
+
+.pcolor {
+  color: var(--primary-color);
+}
+
+.lcolor {
+  color: var(--color-light);
+}
+
+.older-link, .newer-link, .older-link:hover, .newer-link:hover {
+  text-decoration: none;
+  padding: 3px;
+}
+
+.older-link { float: left; }
+.newer-link { float: right; }
+.clear { clear: both; }
+
+.remote-follow-button {
+  background: var(--color-menu-background);
+  color: var(--color-light);
+  text-decoration: none;
+  padding: 5px 8px;
+  margin-top: 5px;
+  border-radius: 2px;
+}
+
+.remote-follow-button:hover {
+  text-decoration: none;
+  background: var(--primary-color);
+  color: var(--background-color);
+}
+
+#admin-menu-wrapper {
+  margin: 0 auto;
+  width: 100%;
+  background: var(--color-menu-background);
+  max-width: 720px;
+  position: fixed;
+  align-self: center;
+  z-index: 100;
+}
+
+#admin-menu-wrapper #admin-menu {
+  list-style-type: none;
+  display: block;
+  padding: 5px;
+  margin-top: 0;
+  color: var(--color-light);
+  border-bottom-left-radius: 2px;
+  border-bottom-right-radius: 2px;
+}
+
+#admin-menu-wrapper #admin-menu .left { float: left; }
+#admin-menu-wrapper #admin-menu .right { float: right; }
+
+#admin-menu-wrapper #admin-menu li {
+  padding-right: 10px;
+}
+
+#admin-menu-wrapper #admin-menu li a { text-decoration: none; }
+
+#admin-menu-wrapper #admin-menu li .admin-title {
+  text-transform: uppercase;
+  font-weight: bold;
+}
+
+#admin-menu-wrapper #admin-menu li .selected,
+#admin-menu-wrapper #admin-menu li a:hover {
+  color: var(--primary-color);
+}
+
+#header {
+  margin-bottom: 70px;
+}
+
+#header .title {
+  font-size: 1.2em;
+  padding-right: 15px;
+  color: var(--color-title-link);
+}
+
+#header .title:hover {
+  text-decoration: none;
+}
+
+#header .subtitle-username {
+  color: var(--color);
+}
+
+#header .menu {
+  clear: both;
+  padding: 0 0 10px 0;
+}
+
+#header .menu ul {
+  display: inline;
+  list-style-type: none;
+  padding: 0;
+}
+
+#header .menu ul li {
+  float: left;
+  margin-bottom: 10px;
+  margin-right: 10px;
+}
+
+#header .menu a {
+  padding: 5px 10px;
+}
+
+#header .menu a small.badge {
+  background-color: var(--color-menu-background);
+  color: var(--color-light);
+  border-radius: 2px;
+  margin-left: 5px;
+  padding: 3px 5px 0px 5px;
+  font-weight: bold;
+}
+
+#header .menu a.selected {
+  background: var(--primary-color);
+  color: var(--background-color);
+  border-radius: 2px;
+}
+
+#header .menu a.selected .badge {
+  color: var(--primary-color);
+  background: var(--background-color);
+}
+
+#header .menu a:hover {
+  background: var(--primary-color);
+  color: var(--background-color);
+  text-decoration: none;
+  border-radius: 2px;
+}
+
+#header .menu a:hover .badge {
+  color: var(--primary-color);
+  background: var(--background-color);
+}
+
+#container {
+  width: 90%;
+  max-width: 720px;
+  margin-top: 50px;
+  margin-bottom: 30px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+#container #notes {
+  margin-top: 20px;
+}
+
+.actor-box {
+  display: block;
+  text-decoration: none;
+  margin-bottom: 40px;
+}
+
+.actor-box .actor-icon {
+  width: 120px;
+  border-radius: 2px;
+}
+
+.actor-box h3 { margin: 0; }
+
+.actor-box .actor-inline {
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.actor-box-big {
+  display: block;
+  text-decoration: none;
+}
+
+.actor-box-big .actor-box-wrapper {
+  margin-bottom: 40px;
+}
+
+.actor-box-big .actor-box-wrapper .actor-icon {
+  width: 120px;
+  border-radius: 2px;
+}
+
+.actor-box-big .actor-box-wrapper h3 { margin: 0; }
+
+.note-box {
+  padding-top: 60px;
+  margin-top: -60px;
+  margin-bottom: 20px;
+  border: 1px;
+}
+
+.note {
+  display: flex;
+  width: 100%;
+}
+
+.note .l {
+  color: var(--color-note-link);
+}
+
+.note .h-card {
+  flex: initial;
+  width: 50px;
+}
+
+.note .u-photo {
+  width: 50px;
+  border-radius: 2px;
+}
+
+.note .note-wrapper {
+  flex: 1;
+  padding-left: 15px;
+  padding-right: 10px;
+  overflow: hidden;
+}
+
+.note .bottom-bar {
+  margin-top: 5px;
+  display: flex;
+  flex-direction: row-reverse;
+  flex-wrap: wrap-reverse;
+}
+
+.note .img-attachment {
+  max-width: 100%;
+  border-radius: 2px;
+}
+
+.note h3 {
+  font-size: 1.1em;
+  color: var(--color-light);
+}
+
+.note strong { font-weight: 600; }
+
+.note .note-container {
+  clear: both;
+  padding: 10px 0;
+  word-break: normal;
+}
+
+.note .note-container a {
+  word-break: break-all;
+  color: steelblue;
+}
+
+.color-menu-background {
+  background: var(--color-menu-background);
+}
+
+.og-link {
+  text-decoration: none;
+  word-break: normal;
+}
+
+.og-link:hover { text-decoration: none; }
+
+.bar-item-no-hover {
+  cursor: default;
+  background: var(--color-menu-background);
+  padding: 1px 6px;
+  color: var(--color-light);
+  margin-right: 0px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.bar-item-no-hover:hover {
+  cursor: default;
+}
+
+.bar-item-pinned {
+  cursor: default;
+  background: var(--color-menu-background);
+  color: var(--color-light);
+  padding: 5px;
+  margin-right: 0px;
+  border-radius: 2px;
+}
+
+.bar-item-pinned:hover {
+  cursor: default;
+}
+
+.bar-item {
+  background: var(--color-menu-background);
+  color: var(--color-light);
+  margin-top: 1px;
+  margin-bottom: 0px;
+  margin-left: 2px;
+  margin-right: 0px;
+  border-radius: 2px;
+  padding: 1px 6px;
+}
+
+.bar-item:hover {
+  background: var(--primary-color);
+  color: var(--background-color);
+}
+
+button.bar-item {
+  border: 0;
+}
+
+form.action-form {
+  display: inline;
+}
+
+.perma {
+  font-size: 1.25em;
+}
+
+.bottom-bar .perma-item {
+  margin-left: 2px;
+  margin-right: 0px;
+  margin-top: 1px;
+  padding: 1px 6px;
+  color: var(--primary-color);
+  background: var(--color-menu-background);
+  border-radius: 2px;
+}
+
+.bottom-bar a.bar-item {
+  word-break: normal;
+}
+
+.bottom-bar a.bar-item:hover {
+  text-decoration: none;
+}
+
+.footer > div {
+  width: 90%;
+  max-width: 720px;
+  margin: 40px auto;
+}
+
+.footer a, .footer a:hover, .footer a:visited {
+  text-decoration: underline;
+  color: var(--color);
+}
+
+.summary {
+  color: var(--color-summary);
+  font-size: 1.1em;
+  margin-top: 10px;
+  margin-bottom: 20px;
+}
+
+.summary a, .summary a:hover {
+  color: var(--color-summary);
+  text-decoration: underline;
+}
+
+#followers, #following, #new {
+  margin-top: 50px;
+}
+
+#admin {
+  margin-top: 50px;
+}
+
+textarea, input {
+  background: var(--color-menu-background);
+  padding: 10px;
+  color: var(--color-light);
+  border: 0px;
+  border-radius: 2px;
+}
+
+input {
+  padding: 10px;
+}
+
+input[type=submit] {
+  color: var(--primary-color);
+  text-transform: uppercase;
+}
+
+video {
+  max-width: 100%;
+  height: auto;
+}
+
+.note-video {
+  margin: 30px 0 10px 0;
+}

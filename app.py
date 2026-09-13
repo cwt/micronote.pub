@@ -38,6 +38,7 @@ import activitypub
 import admin
 import api
 from config import BASE_URL
+from config import CDN_URL
 from config import DB
 from config import DOMAIN
 from config import HEADERS
@@ -46,6 +47,9 @@ from config import ID
 from config import KEY
 from config import ME
 from config import MEDIA_CACHE
+from config import NAME
+from config import SUMMARY
+from config import THEME_COLOR
 from config import USERNAME
 from config import VERSION
 import config
@@ -129,7 +133,7 @@ def inject_config():
     }
 
     return dict(
-        microblogpub_version=VERSION,
+        micronote_version=VERSION,
         config=config,
         logged_in=session.get("logged_in", False),
         followers_count=DB.activities.count_documents(followers_q),
@@ -512,6 +516,47 @@ def nodeinfo():
             "Content-Type": "application/json; profile=http://nodeinfo.diaspora.software/ns/schema/2.0#"
         },
         response=response,
+    )
+
+
+@app.route("/manifest.json")
+def pwa_manifest():
+    """Web app manifest, branded per instance (replaces the old symlinked static manifests)."""
+    return Response(
+        headers={
+            "Content-Type": "application/manifest+json",
+            "Cache-Control": "public,max-age=86400",
+        },
+        response=activitypub.json_dumps({
+            "name": f"{NAME}'s micronote",
+            "short_name": USERNAME,
+            "description": SUMMARY,
+            "id": "/",
+            "start_url": "/",
+            "scope": "/",
+            "display": "standalone",
+            "background_color": "#eee",
+            "theme_color": THEME_COLOR,
+            "icons": [
+                {
+                    "src": f"{CDN_URL}/static/pwa/icon-192.png",
+                    "sizes": "192x192",
+                    "type": "image/png",
+                },
+                {
+                    "src": f"{CDN_URL}/static/pwa/icon-512.png",
+                    "sizes": "512x512",
+                    "type": "image/png",
+                    "purpose": "any",
+                },
+                {
+                    "src": f"{CDN_URL}/static/pwa/icon-maskable-512.png",
+                    "sizes": "512x512",
+                    "type": "image/png",
+                    "purpose": "maskable",
+                },
+            ],
+        }),
     )
 
 
@@ -1023,6 +1068,6 @@ def liked():
 def favicon():
     return send_from_directory(
         directory=os.path.join(app.root_path, 'static'),
-        filename='favicon.ico',
+        path='favicon.ico',
         mimetype='image/vnd.microsoft.icon'
     )
