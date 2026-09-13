@@ -1,4 +1,4 @@
-# micronote
+# micronote.pub
 
 <p align="center">A self-hosted, single-user, <a href="https://activitypub.rocks">ActivityPub</a> powered microblog.</p>
 
@@ -39,7 +39,7 @@ Forked from <a href="https://github.com/tsileo/microblog.pub">microblog.pub</a>,
 
 ## ActivityPub
 
-micronote implements an [ActivityPub](http://activitypub.rocks/) server, it implements both the client to server API and the federated server to server API.
+micronote.pub implements an [ActivityPub](http://activitypub.rocks/) server, it implements both the client to server API and the federated server to server API.
 
 Activities are verified using HTTP Signatures or by fetching the content on the remote server directly.
 
@@ -195,7 +195,7 @@ actor/inbox by that name, and HTTP Signatures cover it.
 
 ## Development
 
-The most convenient way to hack on micronote is to run the server locally, and the worker alongside it:
+The most convenient way to hack on micronote.pub is to run the server locally, and the worker alongside it:
 
 
 ```shell

@@ -135,7 +135,7 @@ def inject_config():
 
 @app.after_request
 def set_x_powered_by(response):
-    response.headers["X-Powered-By"] = "micronote"
+    response.headers["X-Powered-By"] = "micronote.pub"
     return response
 
 
@@ -509,8 +509,8 @@ def nodeinfo():
                 {
                     "version": "2.0",
                     "software": {
-                        "name": "micronote",
-                        "version": f"micronote {VERSION}",
+                        "name": "micronote.pub",
+                        "version": f"micronote.pub {VERSION}",
                     },
                     "protocols": ["activitypub"],
                     "services": {"inbound": [], "outbound": []},
@@ -542,7 +542,7 @@ def pwa_manifest():
             "Cache-Control": "public,max-age=86400",
         },
         response=activitypub.json_dumps({
-            "name": f"{NAME}'s micronote",
+            "name": f"{NAME}'s micronote.pub",
             "short_name": USERNAME,
             "description": SUMMARY,
             "id": "/",

@@ -92,7 +92,7 @@ with open(os.path.join(KEY_DIR, "me.yml")) as f:
     )
 
 USER_AGENT = (
-    f"{requests.utils.default_user_agent()} (micronote/{VERSION}; +{BASE_URL})"
+    f"{requests.utils.default_user_agent()} (micronote.pub/{VERSION}; +{BASE_URL})"
 )
 
 

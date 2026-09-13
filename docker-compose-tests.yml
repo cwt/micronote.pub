@@ -19,4 +19,4 @@ services:
      - MICRONOTE_DEBUG=1
 networks:
   default:
-    name: microblogpubfede 
+    name: micronotepubfede 

@@ -43,7 +43,7 @@ def _thaw(value):
 
 def get_server() -> Fido2Server:
     rp_id = DOMAIN.split(":")[0]
-    return Fido2Server({"id": rp_id, "name": f"{USERNAME}'s micronote"})
+    return Fido2Server({"id": rp_id, "name": f"{USERNAME}'s micronote.pub"})
 
 
 def save_state(name: str, state) -> None:

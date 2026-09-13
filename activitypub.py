@@ -586,7 +586,7 @@ def json_feed(path: str) -> dict[str, Any]:
     return {
         "version": "https://jsonfeed.org/version/1",
         "user_comment": (
-            "This is a micronote feed. You can add this to your feed reader using the following URL: "
+            "This is a micronote.pub feed. You can add this to your feed reader using the following URL: "
             +ID
             +path
         ),
