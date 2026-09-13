@@ -1,4 +1,4 @@
-active-boxes==0.2.2
+active-boxes==0.2.3
 pytest
 requests
 html2text
