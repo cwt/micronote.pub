@@ -2,6 +2,10 @@ from flask import current_app
 from config import DB
 
 
+def published_of(doc):
+    return doc["activity"]["object"]["published"]
+
+
 def _build_thread(data, include_children=True):
     data["_requested"] = True
     current_app.logger.debug(data)
@@ -20,7 +24,7 @@ def _build_thread(data, include_children=True):
 
     # Fetch the root replies, and the children
     replies = [data] + list(DB.activities.find(query))
-    replies = sorted(replies, key=lambda d: d["activity"]["object"]["published"])
+    replies = sorted(replies, key=published_of)
     # Index all the IDs in order to build a tree
     idx = {}
     replies2 = []
@@ -52,7 +56,7 @@ def _build_thread(data, include_children=True):
 
         for snode in sorted(
             idx[node["activity"]["object"]["id"]]["_nodes"],
-            key=lambda d: d["activity"]["object"]["published"],
+            key=published_of,
         ):
             _flatten(snode, level=level + 1)
 

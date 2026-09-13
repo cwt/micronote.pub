@@ -3,6 +3,9 @@ from flask import request
 
 
 def paginated_query(db, q, limit=25, sort_key="_id"):
+    def sort_key_as_str(doc):
+        return str(doc[sort_key])
+
     older_than = newer_than = None
     query_sort = -1
     first_page = not request.args.get("older_than") and not request.args.get(
@@ -21,7 +24,7 @@ def paginated_query(db, q, limit=25, sort_key="_id"):
     outbox_data = list(db.find(q, limit=limit + 1).sort(sort_key, query_sort))
     outbox_len = len(outbox_data)
     outbox_data = sorted(
-        outbox_data[:limit], key=lambda x: str(x[sort_key]), reverse=True
+        outbox_data[:limit], key=sort_key_as_str, reverse=True
     )
 
     if query_older_than:

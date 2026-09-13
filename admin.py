@@ -46,22 +46,22 @@ def admin():
         "type": ActivityType.LIKE.value,
         "box": Box.OUTBOX.value,
     }
-    col_liked = DB.activities.count(q)
+    col_liked = DB.activities.count_documents(q)
 
     return render_template(
         "admin.html",
         instances=list(DB.instances.find()),
-        inbox_size=DB.activities.count({"box": Box.INBOX.value}),
-        outbox_size=DB.activities.count({"box": Box.OUTBOX.value}),
+        inbox_size=DB.activities.count_documents({"box": Box.INBOX.value}),
+        outbox_size=DB.activities.count_documents({"box": Box.OUTBOX.value}),
         col_liked=col_liked,
-        col_followers=DB.activities.count(
+        col_followers=DB.activities.count_documents(
             {
                 "box": Box.INBOX.value,
                 "type": ActivityType.FOLLOW.value,
                 "meta.undo": False,
             }
         ),
-        col_following=DB.activities.count(
+        col_following=DB.activities.count_documents(
             {
                 "box": Box.OUTBOX.value,
                 "type": ActivityType.FOLLOW.value,

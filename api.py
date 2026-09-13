@@ -235,8 +235,8 @@ def api_debug():
         return flask_jsonify(message="DB dropped")
 
     return flask_jsonify(
-        inbox=DB.activities.count({"box": Box.INBOX.value}),
-        outbox=DB.activities.count({"box": Box.OUTBOX.value}),
+        inbox=DB.activities.count_documents({"box": Box.INBOX.value}),
+        outbox=DB.activities.count_documents({"box": Box.OUTBOX.value}),
         outbox_data=without_id(DB.activities.find({"box": Box.OUTBOX.value})),
     )
 

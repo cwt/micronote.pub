@@ -106,14 +106,14 @@ def inject_config():
         "activity.object.inReplyTo": None,
         "meta.deleted": False,
     }
-    notes_count = DB.activities.find(
+    notes_count = DB.activities.count_documents(
         {"box": Box.OUTBOX.value, "$or": [q, {"type": "Announce", "meta.undo": False}]}
-    ).count()
+    )
     q = {"type": "Create", "activity.object.type": "Note", "meta.deleted": False}
-    with_replies_count = DB.activities.find(
+    with_replies_count = DB.activities.count_documents(
         {"box": Box.OUTBOX.value, "$or": [q, {"type": "Announce", "meta.undo": False}]}
-    ).count()
-    liked_count = DB.activities.count(
+    )
+    liked_count = DB.activities.count_documents(
         {
             "box": Box.OUTBOX.value,
             "meta.deleted": False,
@@ -136,8 +136,8 @@ def inject_config():
         microblogpub_version=VERSION,
         config=config,
         logged_in=session.get("logged_in", False),
-        followers_count=DB.activities.count(followers_q),
-        following_count=DB.activities.count(following_q),
+        followers_count=DB.activities.count_documents(followers_q),
+        following_count=DB.activities.count_documents(following_q),
         notes_count=notes_count,
         liked_count=liked_count,
         with_replies_count=with_replies_count,
@@ -283,7 +283,7 @@ def authorize_follow():
         "meta.undo": False,
         "activity.object": actor,
     }
-    if DB.activities.count(q) > 0:
+    if DB.activities.count_documents(q) > 0:
         return redirect("/following")
 
     follow = ap.Follow(actor=MY_PERSON.id, object=actor)
@@ -494,7 +494,7 @@ def nodeinfo():
                     "protocols": ["activitypub"],
                     "services": {"inbound": [], "outbound": []},
                     "openRegistrations": False,
-                    "usage": {"users": {"total": 1}, "localPosts": DB.activities.count(q)},
+                    "usage": {"users": {"total": 1}, "localPosts": DB.activities.count_documents(q)},
                     "metadata": {
                         "sourceCode": "https://github.com/tsileo/microblog.pub",
                         "nodeName": f"@{USERNAME}@{DOMAIN}",
@@ -599,6 +599,26 @@ def activity_from_doc(raw_doc: Dict[str, Any], embed: bool=False) -> Dict[str, A
     return activity
 
 
+def activity_from_doc_embedded(raw_doc: Dict[str, Any]) -> Dict[str, Any]:
+    return activity_from_doc(raw_doc, embed=True)
+
+
+def activity_object_from_doc(raw_doc: Dict[str, Any]) -> Dict[str, Any]:
+    return raw_doc["activity"]["object"]
+
+
+def activity_object_id_from_doc(raw_doc: Dict[str, Any]) -> str:
+    return raw_doc["activity"]["object"]["id"]
+
+
+def activity_actor_from_doc(raw_doc: Dict[str, Any]) -> str:
+    return raw_doc["activity"]["actor"]
+
+
+def activity_without_context(raw_doc: Dict[str, Any]) -> Dict[str, Any]:
+    return remove_context(raw_doc["activity"])
+
+
 @app.route("/outbox", methods=["GET", "POST"])
 def outbox():
     if request.method == "GET":
@@ -615,7 +635,7 @@ def outbox():
                 DB.activities,
                 q=q,
                 cursor=request.args.get("cursor"),
-                map_func=lambda doc: activity_from_doc(doc, embed=True),
+                map_func=activity_from_doc_embedded,
                 col_name="outbox",
             )
         )
@@ -697,7 +717,7 @@ def outbox_activity_replies(item_id):
             DB.activities,
             q=q,
             cursor=request.args.get("cursor"),
-            map_func=lambda doc: doc["activity"]["object"],
+            map_func=activity_object_from_doc,
             col_name=f"outbox/{item_id}/replies",
             first_page=request.args.get("page") == "first",
         )
@@ -735,7 +755,7 @@ def outbox_activity_likes(item_id):
             DB.activities,
             q=q,
             cursor=request.args.get("cursor"),
-            map_func=lambda doc: remove_context(doc["activity"]),
+            map_func=activity_without_context,
             col_name=f"outbox/{item_id}/likes",
             first_page=request.args.get("page") == "first",
         )
@@ -773,7 +793,7 @@ def outbox_activity_shares(item_id):
             DB.activities,
             q=q,
             cursor=request.args.get("cursor"),
-            map_func=lambda doc: remove_context(doc["activity"]),
+            map_func=activity_without_context,
             col_name=f"outbox/{item_id}/shares",
             first_page=request.args.get("page") == "first",
         )
@@ -795,7 +815,7 @@ def inbox():
                 DB.activities,
                 q={"meta.deleted": False, "box": Box.INBOX.value},
                 cursor=request.args.get("cursor"),
-                map_func=lambda doc: remove_context(doc["activity"]),
+                map_func=activity_without_context,
                 col_name="inbox",
             )
         )
@@ -864,7 +884,7 @@ def followers():
                 DB.activities,
                 q=q,
                 cursor=request.args.get("cursor"),
-                map_func=lambda doc: doc["activity"]["actor"],
+                map_func=activity_actor_from_doc,
                 col_name="followers",
             )
         )
@@ -890,7 +910,7 @@ def following():
                 DB.activities,
                 q=q,
                 cursor=request.args.get("cursor"),
-                map_func=lambda doc: doc["activity"]["object"],
+                map_func=activity_object_from_doc,
                 col_name="following",
             )
         )
@@ -912,7 +932,7 @@ def following():
 
 @app.route("/tags/<tag>")
 def tags(tag):
-    if not DB.activities.count(
+    if not DB.activities.count_documents(
         {
             "box": Box.OUTBOX.value,
             "activity.object.tag.type": "Hashtag",
@@ -947,7 +967,7 @@ def tags(tag):
             DB.activities,
             q=q,
             cursor=request.args.get("cursor"),
-            map_func=lambda doc: doc["activity"]["object"]["id"],
+            map_func=activity_object_id_from_doc,
             col_name=f"tags/{tag}",
         )
     )
@@ -990,7 +1010,7 @@ def liked():
             DB.activities,
             q=q,
             cursor=request.args.get("cursor"),
-            map_func=lambda doc: doc["activity"]["object"],
+            map_func=activity_object_from_doc,
             col_name="liked",
         )
     )

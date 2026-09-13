@@ -380,7 +380,7 @@ class MicroblogPubBackend(Backend):
             )["activity"]["object"].get("inReplyTo")
 
         # Fake a Undo so any related Like/Announce doesn't appear on the web UI
-        self.DB.activities.update(
+        self.DB.activities.update_many(
             {"meta.object.id": obj.id},
             {"$set": {"meta.undo": True, "meta.extra": "object deleted"}},
         )
@@ -404,7 +404,7 @@ class MicroblogPubBackend(Backend):
                 )["activity"]
             ).get_object()
 
-        self.DB.activities.update(
+        self.DB.activities.update_many(
             {"meta.object.id": obj.id},
             {"$set": {"meta.undo": True, "meta.exta": "object deleted"}},
         )
@@ -494,14 +494,14 @@ class MicroblogPubBackend(Backend):
             root_reply = in_reply_to
             reply = ap.fetch_remote_activity(root_reply)
             q = {"activity.object.id": root_reply}
-            if not self.DB.activities.count(q):
+            if not self.DB.activities.count_documents(q):
                 self.save(Box.REPLIES, reply)
                 new_threads.append(reply.id)
 
         self.DB.activities.update_one(
             {"remote_id": create.id}, {"$set": {"meta.thread_root_parent": root_reply}}
         )
-        self.DB.activities.update(
+        self.DB.activities.update_many(
             {"box": Box.REPLIES.value, "remote_id": {"$in": new_threads}},
             {"$set": {"meta.thread_root_parent": root_reply}},
         )
@@ -686,7 +686,7 @@ def build_ordered_collection(
 
     start_cursor = str(data[0]["_id"])
     next_page_cursor = str(data[-1]["_id"])
-    total_items = col.find(q).count()
+    total_items = col.count_documents(q)
 
     data = [_remove_id(doc) for doc in data]
     if map_func:
