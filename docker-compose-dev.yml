@@ -8,4 +8,4 @@ services:
      - "./config:/app/config"
      - "./data:/app/data"
     environment:
-     - MICROBLOGPUB_DEBUG=1
+     - MICRONOTE_DEBUG=1

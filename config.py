@@ -58,7 +58,7 @@ try:
 except:
     VERSION = "-"
 
-DEBUG_MODE = strtobool(os.getenv("MICROBLOGPUB_DEBUG", "false"))
+DEBUG_MODE = strtobool(os.getenv("MICRONOTE_DEBUG", "false"))
 
 HEADERS = [
     "application/activity+json",
@@ -99,7 +99,7 @@ with open(os.path.join(KEY_DIR, "me.yml")) as f:
     )
 
 USER_AGENT = (
-    f"{requests.utils.default_user_agent()} (microblog.pub/{VERSION}; +{BASE_URL})"
+    f"{requests.utils.default_user_agent()} (micronote/{VERSION}; +{BASE_URL})"
 )
 
 

@@ -1,19 +1,8 @@
-# microblog.pub
-
-<p align="center">
-  <img 
-    src="https://sos-ch-dk-2.exo.io/microblogpub/microblobpub.png" 
-    width="200" height="200" border="0" alt="microblog.pub">
-</p>
-<p align="center">
-<a href="https://travis-ci.org/tsileo/microblog.pub"><img src="https://travis-ci.org/tsileo/microblog.pub.svg?branch=master" alt="Build Status"></a>
-<a href="https://matrix.to/#/#microblog.pub:matrix.org"><img src="https://img.shields.io/badge/matrix-%23microblog.pub-blue.svg" alt="#microblog.pub on Matrix"></a>
-<a href="https://github.com/tsileo/microblog.pub/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-AGPL_3.0-blue.svg?style=flat" alt="License"></a>
-</p>
+# micronote
 
 <p align="center">A self-hosted, single-user, <a href="https://activitypub.rocks">ActivityPub</a> powered microblog.</p>
 
-**Still in early development.**
+Forked from <a href="https://github.com/tsileo/microblog.pub">microblog.pub</a>, modernized: SQLite storage via <a href="https://github.com/cwt/neosqlite">NeoSQLite</a>, federation via <a href="https://github.com/cwt/active-boxes">active-boxes</a>, no task broker, plain CSS.
 
 ## Features
 
@@ -22,15 +11,15 @@
    - Also implements a remote follow compatible with Mastodon instances
  - Exposes your outbox as a basic microblog
  - Implements [IndieAuth](https://indieauth.spec.indieweb.org/) endpoints (authorization and token endpoint)
-   - U2F support
    - You can use your ActivityPub identity to login to other websites/app
  - Comes with an admin UI with notifications and the stream of people you follow
  - Allows you to attach files to your notes
    - Privacy-aware image upload endpoint that strip EXIF meta data before storing the file
  - No JavaScript, **that's it**. Even the admin UI is pure HTML/CSS
- - Easy to customize (the theme is written Sass)
+ - Easy to customize (plain CSS with light/dark custom properties)
    - mobile-friendly theme
    - with dark and light version
+   - installable web app manifest (icons, theme color)
  - Microformats aware (exports `h-feed`, `h-entry`, `h-cards`, ...)
  - Exports RSS/Atom/[JSON](https://jsonfeed.org/) feeds
     - You stream/timeline is also available in an (authenticated) JSON feed
@@ -39,16 +28,15 @@
    - With a good setup, cached content can be served most of the time
    - You can setup a "purge" hook to let you invalidate cache when the microblog was updated
  - Deployable with Docker (Docker compose for everything: dev, test and deployment)
+ - Single SQLite file storage (no database server), background jobs via a built-in worker (no broker)
  - Focused on testing
-   - The core ActivityPub code/tests are in [Little Boxes](https://github.com/tsileo/little-boxes)
-   - Tested against the [official ActivityPub test suite](https://test.activitypub.rocks/) ([report submitted](https://github.com/w3c/activitypub/issues/308))
+   - The core ActivityPub code/tests are in [active-boxes](https://github.com/cwt/active-boxes)
+   - Local ActivityPub matrix harness (see `docs/migration.md`) covers all supported actions without the fediverse
    - CI runs "federation" tests against two instances
-   - Manually tested against [Mastodon](https://github.com/tootsuite/mastodon)
-   - Project is running an up-to-date instance
 
 ## ActivityPub
 
-microblog.pub implements an [ActivityPub](http://activitypub.rocks/) server, it implements both the client to server API and the federated server to server API.
+micronote implements an [ActivityPub](http://activitypub.rocks/) server, it implements both the client to server API and the federated server to server API.
 
 Activities are verified using HTTP Signatures or by fetching the content on the remote server directly.
 
@@ -57,11 +45,8 @@ Activities are verified using HTTP Signatures or by fetching the content on the 
 ### Installation
 
 ```shell
-$ git clone https://github.com/tsileo/microblog.pub
-$ cd microblog.pub
 $ pip install -r requirements.txt
-$ make css
-$ cp -r config/me.sample.yml config/me.yml
+$ cp config/me.sample.yml config/me.yml
 ``` 
 
 ### Configuration
@@ -86,24 +71,26 @@ pass: $2b$12$iW497g...
 
 ### Deployment
 
-Note: some of the docker yml files use version 3 of [docker-compose](https://docs.docker.com/compose/install/).
-
 ```shell
 $ docker-compose up -d
 ```
 
+This starts the web app and the background worker sharing one SQLite file under `./data`.
+
 ## Development
 
-The most convenient way to hack on microblog.pub is to run the server locally, and run
+The most convenient way to hack on micronote is to run the server locally, and the worker alongside it:
 
 
 ```shell
 # One-time setup
 $ pip install -r requirements.txt
-# Start the Celery worker, RabbitMQ and MongoDB
+# Run the background worker (the dev compose only starts the worker)
 $ docker-compose -f docker-compose-dev.yml up -d
 # Run the server locally
-$ FLASK_DEBUG=1 MICROBLOGPUB_DEBUG=1 FLASK_APP=app.py flask run -p 5005 --with-threads
+$ FLASK_DEBUG=1 MICRONOTE_DEBUG=1 FLASK_APP=app.py flask run -p 5005 --with-threads
+# ...or skip the worker and run jobs inline instead:
+$ MICRONOTE_TASK_EAGER=1 FLASK_DEBUG=1 MICRONOTE_DEBUG=1 FLASK_APP=app.py flask run -p 5005 --with-threads
 ```
 
 ## API
@@ -141,14 +128,14 @@ You can pass the `id` via JSON, form data or query argument.
 #### Example
 
 ```shell
-$ http POST https://microblog.pub/api/note/delete Authorization:'Bearer <token>' id=http://microblob.pub/outbox/<note_id>/activity
+$ http POST https://your-domain.tld/api/note/delete Authorization:'Bearer <token>' id=http://your-domain.tld/outbox/<note_id>/activity
 ```
 
 #### Response
 
 ```json
 {
-    "activity": "https://microblog.pub/outbox/<delete_id>"
+    "activity": "https://your-domain.tld/outbox/<delete_id>"
 }
 ```
 
@@ -163,7 +150,7 @@ You can pass the `id` via JSON, form data or query argument.
 #### Example
 
 ```shell
-$ http POST https://microblog.pub/api/note/pin Authorization:'Bearer <token>' id=http://microblob.pub/outbox/<note_id>/activity
+$ http POST https://your-domain.tld/api/note/pin Authorization:'Bearer <token>' id=http://your-domain.tld/outbox/<note_id>/activity
 ```
 
 #### Response
@@ -185,7 +172,7 @@ You can pass the `id` via JSON, form data or query argument.
 #### Example
 
 ```shell
-$ http POST https://microblog.pub/api/note/unpin Authorization:'Bearer <token>' id=http://microblob.pub/outbox/<note_id>/activity
+$ http POST https://your-domain.tld/api/note/unpin Authorization:'Bearer <token>' id=http://your-domain.tld/outbox/<note_id>/activity
 ```
 
 #### Response
@@ -207,14 +194,14 @@ You can pass the `id` via JSON, form data or query argument.
 #### Example
 
 ```shell
-$ http POST https://microblog.pub/api/like Authorization:'Bearer <token>' id=http://activity-iri.tld
+$ http POST https://your-domain.tld/api/like Authorization:'Bearer <token>' id=http://activity-iri.tld
 ```
 
 #### Response
 
 ```json
 {
-    "activity": "https://microblog.pub/outbox/<like_id>"
+    "activity": "https://your-domain.tld/outbox/<like_id>"
 }
 ```
 
@@ -229,14 +216,14 @@ You can pass the `id` via JSON, form data or query argument.
 #### Example
 
 ```shell
-$ http POST https://microblog.pub/api/boost Authorization:'Bearer <token>' id=http://activity-iri.tld
+$ http POST https://your-domain.tld/api/boost Authorization:'Bearer <token>' id=http://activity-iri.tld
 ```
 
 #### Response
 
 ```json
 {
-    "activity": "https://microblog.pub/outbox/<announce_id>"
+    "activity": "https://your-domain.tld/outbox/<announce_id>"
 }
 ```
 
@@ -251,14 +238,14 @@ You can pass the `id` via JSON, form data or query argument.
 #### Example
 
 ```shell
-$ http POST https://microblog.pub/api/block Authorization:'Bearer <token>' actor=http://actor-iri.tld/
+$ http POST https://your-domain.tld/api/block Authorization:'Bearer <token>' actor=http://actor-iri.tld/
 ```
 
 #### Response
 
 ```json
 {
-    "activity": "https://microblog.pub/outbox/<block_id>"
+    "activity": "https://your-domain.tld/outbox/<block_id>"
 }
 ```
 
@@ -273,14 +260,14 @@ You can pass the `id` via JSON, form data or query argument.
 #### Example
 
 ```shell
-$ http POST https://microblog.pub/api/follow Authorization:'Bearer <token>' actor=http://actor-iri.tld/
+$ http POST https://your-domain.tld/api/follow Authorization:'Bearer <token>' actor=http://actor-iri.tld/
 ```
 
 #### Response
 
 ```json
 {
-    "activity": "https://microblog.pub/outbox/<follow_id>"
+    "activity": "https://your-domain.tld/outbox/<follow_id>"
 }
 ```
 
@@ -295,14 +282,14 @@ You can pass the `content` and `reply` via JSON, form data or query argument.
 #### Example
 
 ```shell
-$ http POST https://microblog.pub/api/new_note Authorization:'Bearer <token>' content=hello
+$ http POST https://your-domain.tld/api/new_note Authorization:'Bearer <token>' content=hello
 ```
 
 #### Response
 
 ```json
 {
-    "activity": "https://microblog.pub/outbox/<create_id>"
+    "activity": "https://your-domain.tld/outbox/<create_id>"
 }
 ```
 
@@ -313,7 +300,7 @@ $ http POST https://microblog.pub/api/new_note Authorization:'Bearer <token>' co
 #### Example
 
 ```shell
-$ http GET https://microblog.pub/api/stream Authorization:'Bearer <token>'
+$ http GET https://your-domain.tld/api/stream Authorization:'Bearer <token>'
 ```
 
 #### Response

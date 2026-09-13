@@ -56,7 +56,6 @@ import config
 import feeds
 import filters
 import indieauth
-import migrations
 import tasks
 from utils.headers import noindex
 from utils.key import get_secret_key
@@ -75,7 +74,6 @@ app.register_blueprint(api.blueprint)
 app.register_blueprint(feeds.blueprint)
 app.register_blueprint(filters.blueprint)
 app.register_blueprint(indieauth.blueprint)
-app.register_blueprint(migrations.blueprint)
 app.secret_key = get_secret_key("flask")
 app.config.update(WTF_CSRF_CHECK_DEFAULT=False)
 app.jinja_env.trim_blocks = True
@@ -147,7 +145,7 @@ def inject_config():
 
 @app.after_request
 def set_x_powered_by(response):
-    response.headers["X-Powered-By"] = "microblog.pub"
+    response.headers["X-Powered-By"] = "micronote"
     return response
 
 
@@ -495,15 +493,15 @@ def nodeinfo():
                 {
                     "version": "2.0",
                     "software": {
-                        "name": "microblogpub",
-                        "version": f"Microblog.pub {VERSION}",
+                        "name": "micronote",
+                        "version": f"micronote {VERSION}",
                     },
                     "protocols": ["activitypub"],
                     "services": {"inbound": [], "outbound": []},
                     "openRegistrations": False,
                     "usage": {"users": {"total": 1}, "localPosts": DB.activities.count_documents(q)},
                     "metadata": {
-                        "sourceCode": "https://github.com/tsileo/microblog.pub",
+                        "sourceCode": "https://github.com/cwt/micronote.pub",
                         "nodeName": f"@{USERNAME}@{DOMAIN}",
                     },
                 }

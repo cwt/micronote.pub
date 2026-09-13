@@ -107,7 +107,7 @@ class MicroblogPubBackend(Backend):
         self.DB = create_db_client(DB_NAME)
 
     def debug_mode(self) -> bool:
-        return strtobool(os.getenv("MICROBLOGPUB_DEBUG", "false"))
+        return strtobool(os.getenv("MICRONOTE_DEBUG", "false"))
 
     def user_agent(self) -> str:
         """Setup a custom user agent."""
@@ -581,7 +581,7 @@ def json_feed(path: str) -> Dict[str, Any]:
     return {
         "version": "https://jsonfeed.org/version/1",
         "user_comment": (
-            "This is a microblog feed. You can add this to your feed reader using the following URL: "
+            "This is a micronote feed. You can add this to your feed reader using the following URL: "
             +ID
             +path
         ),

@@ -8,7 +8,7 @@ services:
      - "${DATA_DIR}:/app/data"
      - "./static:/app/static"
     environment:
-     - MICROBLOGPUB_DEBUG=1
+     - MICRONOTE_DEBUG=1
   worker:
     image: 'microblogpub:latest'
     command: 'python worker.py'
@@ -16,4 +16,4 @@ services:
      - "${CONFIG_DIR}:/app/config"
      - "${DATA_DIR}:/app/data"
     environment:
-     - MICROBLOGPUB_DEBUG=1
+     - MICRONOTE_DEBUG=1
