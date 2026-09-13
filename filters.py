@@ -1,7 +1,6 @@
 from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
-from hashlib import sha1
 from typing import Dict
 from typing import Optional
 from typing import Tuple
@@ -13,24 +12,17 @@ from dateutil import parser
 from flask import current_app
 import flask
 from html2text import html2text
-from langdetect import DetectorFactory
-import langdetect
 from active_boxes import activitypub as ap
 from active_boxes.activitypub import _to_list
 from active_boxes.activitypub import get_backend
 from active_boxes.errors import ActivityGoneError
 from active_boxes.errors import ActivityNotFoundError
-from similar_text import similar_text
 import timeago
-from yandex.Translater import Translater, TranslaterLang
 
 from config import CDN_URL
-from config import DB
 from config import ID
 from config import MEDIA_CACHE
-from config import SIMILARITY_THRESHOLD
 from config import TIMEZONE
-from config import YANDEX_TRANSLATE_API, NO_TRANSLATE, TARGET_LANG
 from utils.emoji import flexmoji
 from utils.media import Kind
 
@@ -270,123 +262,3 @@ def not_only_imgs(attachment):
 @blueprint.app_template_filter()
 def is_img(filename):
     return _is_img(filename)
-
-
-@blueprint.app_template_filter()
-def translate(html):
-    if not html.strip() or not YANDEX_TRANSLATE_API:
-        return html
-    translated_html = ''
-    detected_lang = ''
-    detected_prob = 0
-    similar = 200
-    html_hash = sha1(html.encode()).hexdigest()
-    cache = DB.translate.find_one({'hash': html_hash, 'target_lang': TARGET_LANG})
-    if cache:
-        detected_lang = cache['detected_lang']
-        detected_prob = cache['detected_prob']
-        translated_html = cache['translated_html']
-        similar = cache['similar']
-        if detected_lang in NO_TRANSLATE:
-            return html
-        current_app.logger.debug('translation cache HIT')
-        current_app.logger.debug(f'cached detected language {detected_lang}:{detected_prob}')
-        current_app.logger.debug(f'cached similarity {similar}%')
-    else:
-        current_app.logger.debug('translation cache MISS')
-        clean_html = bleach.clean(html, tags=ALLOWED_TAGS)
-        text = html2text(clean_html)
-        try:
-            langs = langdetect.detect_langs(text)
-        except:
-            current_app.logger.debug('cannot detect languages on langdetect')
-        else:
-            for lang in langs:
-                if lang.prob > detected_prob:
-                    detected_lang = lang.lang
-                    detected_prob = lang.prob
-            current_app.logger.debug(f'detected language {detected_lang}:{detected_prob}')
-
-        DetectorFactory.seed = 0
-        tr = Translater()
-        tr.set_key(YANDEX_TRANSLATE_API)
-        tr.set_to_lang(TARGET_LANG)
-
-        try:
-            tr.set_text(html)
-        except:
-            current_app.logger.debug('cannot set text on yandex')
-            return html
-
-        if not detected_lang:
-            try:
-                detected_lang = tr.detect_lang()
-            except:
-                current_app.logger.debug('cannot detect language on yandex')
-                return html
-            else:
-                detected_prob = 2.00
-                current_app.logger.debug(f'detected language {detected_lang}:{detected_prob}')
-
-        if detected_lang not in NO_TRANSLATE and detected_prob >= 0.95:
-            try:
-                tr.set_from_lang(detected_lang)
-            except TranslaterLang:
-                current_app.logger.debug(f'cannot set language {detected_lang} on yandex')
-                if detected_prob == 2.00:
-                    return html
-                try:
-                    detected_lang = tr.detect_lang()
-                except:
-                    current_app.logger.debug('cannot detect language on yandex')
-                    return html
-                else:
-                    try:
-                        tr.set_from_lang(detected_lang)
-                    except:
-                        current_app.logger.debug(f'cannot set language {detected_lang} on yandex')
-                        return html
-
-            try:
-                translated_html = tr.translate()
-            except:
-                current_app.logger.debug(f'cannot translate {detected_lang}→{TARGET_LANG} on yandex')
-                return html
-            else:
-                translated_html = translated_html.replace(' < p > < / p > ','')
-                translated_html = translated_html.replace(' < br > ','')
-                similar = similar_text(html, translated_html)
-                DB.translate.update_one(
-                    {"hash": html_hash, "target_lang": TARGET_LANG},
-                    {"$set": {"detected_lang": detected_lang,
-                              "detected_prob": detected_prob,
-                              "html": html,
-                              "translated_html": translated_html,
-                              "similar": similar}},
-                    upsert=True,
-                )
-
-    reference = (
-        '<div style="float:right;">'
-        '<a href="https://translate.yandex.com/">Powered by '
-        '<span style="color:red;">Y</span>andex.Translate</a>'
-        '</div>'
-        '<div style="float:right;margin-left:1px;margin-right:1px;">'
-        f'[{detected_lang}→{TARGET_LANG}]'
-        '</div>'
-    )
-
-    if similar < SIMILARITY_THRESHOLD:
-        current_app.logger.debug(f'translated html is {similar}% similar to the original')
-        return (
-            f'{html}<hr/>{reference}'
-            '<div style="clear:both;"></div>'
-            f'{translated_html}'
-            '<div style="clear:both;"></div>'
-        )
-    else:
-        if similar <= 100:
-            current_app.logger.debug(f'translated html is {similar}% similar to the original')
-            current_app.logger.debug(f'ORIGINAL HTML: {html}')
-            current_app.logger.debug(f'TRANSLATED HTML: {translated_html}')
-    return html

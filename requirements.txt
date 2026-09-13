@@ -23,7 +23,4 @@ pillow
 cachetools
 gevent
 emoji
-git+https://github.com/bashell-com/langdetect.git
-similar_text
-yandex-translater
 git+https://github.com/bashell-com/jinja2-htmlcompress.git

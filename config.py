@@ -89,10 +89,6 @@ with open(os.path.join(KEY_DIR, "me.yml")) as f:
     THEME_COLOR = theme_conf.get("color", DEFAULT_THEME_PRIMARY_COLOR[THEME_STYLE])
     TIMEZONE = int(conf.get("timezone_hours", 0))
     CDN_URL = conf.get("cdn_url", "")
-    YANDEX_TRANSLATE_API = conf.get("yandex_translate_api_key", "")
-    NO_TRANSLATE = conf.get("no_translate", [])
-    TARGET_LANG = conf.get("target_lang", "en")
-    SIMILARITY_THRESHOLD = conf.get("similarity_threshold", 94)
     IMAGE_MAX_SIZE = (
         conf.get("image_max_size", {}).get("width", 1920),
         conf.get("image_max_size", {}).get("height", 1920)
@@ -160,7 +156,6 @@ def create_indexes():
     ])
     DB.cache2.create_index([("path", ASCENDING), ("type", ASCENDING), ("arg", ASCENDING)])
     DB.cache2.create_index("date", expireAfterSeconds=3600 * 12)
-    DB.translate.create_index([("hash", ASCENDING), ("target_lang", ASCENDING)])
 
     # Index for the block query
     DB.activities.create_index(
