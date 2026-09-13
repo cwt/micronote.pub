@@ -210,6 +210,9 @@ def robots_txt():
     return Response(response=ROBOTS_TXT, headers={"Content-Type": "text/plain"})
 
 
+GZIP_MAGIC = b"\x1f\x8b"
+
+
 def serve_grid_file(grid_out):
     data = grid_out.read()
     upload_date = grid_out.upload_date
@@ -225,7 +228,10 @@ def serve_grid_file(grid_out):
     resp.headers.set("ETag", grid_out.md5)
     resp.headers.set("Last-Modified", last_modified)
     resp.headers.set("Cache-Control", "public,max-age=31536000,immutable")
-    resp.headers.set("Content-Encoding", "gzip")
+    if data[:2] == GZIP_MAGIC:
+        # Legacy entries and non-image blobs are gzip-compressed;
+        # WebP entries are stored raw.
+        resp.headers.set("Content-Encoding", "gzip")
     return resp
 
 

@@ -255,17 +255,26 @@ def cache_attachments(job) -> None:
             upsert=True,
         )
 
-        if actor.icon:
-            MEDIA_CACHE.cache(actor.icon["url"], Kind.ACTOR_ICON)
+        icon = actor.icon
+        icon_url = icon.get("url") if isinstance(icon, dict) else None
+        if icon_url:
+            MEDIA_CACHE.cache(icon_url, Kind.ACTOR_ICON)
 
         if activity.has_type(ap.ActivityType.CREATE):
             for attachment in activity.get_object_sync()._data.get("attachment", []):
+                if not isinstance(attachment, dict):
+                    continue
+                url = attachment.get("url")
+                if not url:
+                    log.warning(f"skipping attachment without url in {iri}")
+                    continue
+                media_type = attachment.get("mediaType") or ""
                 if (
-                    attachment.get("mediaType", "").startswith("image/")
+                    media_type.startswith("image/")
                     or attachment.get("type") == ap.ActivityType.IMAGE.value
                 ):
                     try:
-                        MEDIA_CACHE.cache(attachment["url"], Kind.ATTACHMENT)
+                        MEDIA_CACHE.cache(url, Kind.ATTACHMENT)
                     except ValueError:
                         log.exception(f"failed to cache {attachment}")
 
