@@ -7,7 +7,7 @@ modernization beats adding legacy shims to the libraries).
 Decisions (agreed):
 
 - Database: MongoDB → `NeoSQLite==1.16.1` (single SQLite file, WAL; covers our backlog: `find()` option kwargs, TTL expiry, `watch()` resume + `$match` filtering, ObjectId ordering — see `../neosqlite/documents/releases/`).
-- ActivityPub: `little-boxes` → `active-boxes==0.2.1` (async-first, use `*_sync` wrappers in Flask).
+- ActivityPub: `little-boxes` → `active-boxes==0.2.2` (async-first, use `*_sync` wrappers in Flask; backend `fetch_iri` override is `async` to match the base).
 - CSS: drop Sass/`libsass`, ship plain CSS with custom properties.
 - Tasks: drop Celery/RabbitMQ, replace with a `watch()`-driven `jobs` collection + single worker process.
 - Everything else: upgrade to latest that still supports Python 3.11 (Flask 3.x, etc.).

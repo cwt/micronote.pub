@@ -1,19 +1,19 @@
 import json
 
-import little_boxes.activitypub as ap
+import active_boxes.activitypub as ap
 import mf2py
 import requests
-from little_boxes.errors import NotAnActivityError
-from little_boxes.webfinger import get_actor_url
+from active_boxes.errors import NotAnActivityError
+from active_boxes.webfinger import get_actor_url_sync
 
 
 def lookup(url: str) -> ap.BaseActivity:
     """Try to find an AP object related to the given URL."""
     try:
         if url.startswith('@'):
-            actor_url = get_actor_url(url)
+            actor_url = get_actor_url_sync(url)
             if actor_url:
-                return ap.fetch_remote_activity(actor_url)
+                return ap.fetch_remote_activity_sync(actor_url)
     except NotAnActivityError:
         pass
     except requests.HTTPError:
@@ -33,7 +33,7 @@ def lookup(url: str) -> ap.BaseActivity:
     # If the page is HTML, maybe it contains an alternate link pointing to an AP object
     for alternate in mf2py.parse(resp.text).get("alternates", []):
         if alternate.get("type") == "application/activity+json":
-            return ap.fetch_remote_activity(alternate["url"])
+            return ap.fetch_remote_activity_sync(alternate["url"])
 
     try:
         # Maybe the page was JSON-LD?
@@ -43,4 +43,4 @@ def lookup(url: str) -> ap.BaseActivity:
         pass
 
     # Try content negotiation (retry with the AP Accept header)
-    return ap.fetch_remote_activity(url)
+    return ap.fetch_remote_activity_sync(url)

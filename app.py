@@ -20,17 +20,16 @@ from flask import session
 from flask import url_for
 from flask_wtf.csrf import CSRFProtect
 from itsdangerous import BadSignature
-from little_boxes import activitypub as ap
-from little_boxes.activitypub import ActivityType
-from little_boxes.activitypub import _to_list
-from little_boxes.activitypub import clean_activity
-from little_boxes.activitypub import get_backend
-from little_boxes.errors import ActivityGoneError
-from little_boxes.errors import Error
-from little_boxes.httpsig import HTTPSigAuth
-from little_boxes.httpsig import verify_request
-from little_boxes.webfinger import get_actor_url
-from little_boxes.webfinger import get_remote_follow_template
+from active_boxes import activitypub as ap
+from active_boxes.activitypub import ActivityType
+from active_boxes.activitypub import _to_list
+from active_boxes.activitypub import clean_activity
+from active_boxes.activitypub import get_backend
+from active_boxes.errors import ActivityGoneError
+from active_boxes.errors import Error
+from active_boxes.httpsig import verify_request_sync
+from active_boxes.webfinger import get_actor_url_sync
+from active_boxes.webfinger import get_remote_follow_template_sync
 from u2flib_server import u2f
 
 from activitypub import Box
@@ -93,8 +92,6 @@ else:
     root_logger.setLevel(gunicorn_logger.level)
     if root_logger.level > logging.DEBUG:
         app.jinja_env.add_extension('jinja2htmlcompress.HTMLCompress')
-
-SIG_AUTH = HTTPSigAuth(KEY)
 
 
 @app.context_processor
@@ -267,7 +264,7 @@ def remote_follow():
     if not profile.startswith("@"):
         profile = f"@{profile}"
     return redirect(
-        get_remote_follow_template(profile).format(uri=f"{USERNAME}@{DOMAIN}")
+        get_remote_follow_template_sync(profile).format(uri=f"{USERNAME}@{DOMAIN}")
     )
 
 
@@ -279,7 +276,7 @@ def authorize_follow():
             "authorize_remote_follow.html", profile=request.args.get("profile")
         )
 
-    actor = get_actor_url(request.form.get("profile"))
+    actor = get_actor_url_sync(request.form.get("profile"))
     if not actor:
         abort(500)
 
@@ -686,7 +683,7 @@ def outbox_activity(item_id):
     obj = activity_from_doc(data)
     if data["meta"].get("deleted", False):
         obj = ap.parse_activity(data["activity"])
-        resp = jsonify(**obj.get_object().get_tombstone().to_dict())
+        resp = jsonify(**obj.get_object_sync().get_tombstone().to_dict())
         resp.status_code = 410
         return resp
 
@@ -715,7 +712,7 @@ def outbox_activity_replies(item_id):
     q = {
         "meta.deleted": False,
         "type": ActivityType.CREATE.value,
-        "activity.object.inReplyTo": obj.get_object().id,
+        "activity.object.inReplyTo": obj.get_object_sync().id,
     }
 
     return jsonify(
@@ -751,8 +748,8 @@ def outbox_activity_likes(item_id):
         "meta.undo": False,
         "type": ActivityType.LIKE.value,
         "$or": [
-            {"activity.object.id": obj.get_object().id},
-            {"activity.object": obj.get_object().id},
+            {"activity.object.id": obj.get_object_sync().id},
+            {"activity.object": obj.get_object_sync().id},
         ],
     }
 
@@ -789,8 +786,8 @@ def outbox_activity_shares(item_id):
         "meta.undo": False,
         "type": ActivityType.ANNOUNCE.value,
         "$or": [
-            {"activity.object.id": obj.get_object().id},
-            {"activity.object": obj.get_object().id},
+            {"activity.object.id": obj.get_object_sync().id},
+            {"activity.object": obj.get_object_sync().id},
         ],
     }
 
@@ -830,7 +827,7 @@ def inbox():
     logger.debug(f"req_headers={request.headers}")
     logger.debug(f"raw_data={data}")
     try:
-        if not verify_request(
+        if not verify_request_sync(
             request.method, request.path, request.headers, request.data
         ):
             raise Exception("failed to verify request")
@@ -839,7 +836,7 @@ def inbox():
             "failed to verify request, trying to verify the payload by fetching the remote"
         )
         try:
-            data = get_backend().fetch_iri(data["id"])
+            data = get_backend().fetch_iri_sync(data["id"])
         except ActivityGoneError:
             # XXX Mastodon sends Delete activities that are not dereferencable, it's the actor url with #delete
             # appended, so an `ActivityGoneError` kind of ensure it's "legit"

@@ -13,12 +13,12 @@ from flask import session
 import flask
 from flask_wtf.csrf import CSRFProtect
 from itsdangerous import BadSignature
-from little_boxes import activitypub as ap
-from little_boxes.activitypub import ActivityType
-from little_boxes.activitypub import get_backend
-from little_boxes.content_helper import parse_markdown
-from little_boxes.errors import ActivityNotFoundError
-from little_boxes.errors import NotFromOutboxError
+from active_boxes import activitypub as ap
+from active_boxes.activitypub import ActivityType
+from active_boxes.activitypub import get_backend
+from active_boxes.content_helper import parse_markdown
+from active_boxes.errors import ActivityNotFoundError
+from active_boxes.errors import NotFromOutboxError
 from werkzeug.utils import secure_filename
 
 from activitypub import Box
@@ -106,10 +106,10 @@ def _user_api_get_note(from_outbox: bool=False):
     oid = _user_api_arg("id")
     current_app.logger.info(f"fetching {oid}")
     try:
-        note = ap.parse_activity(get_backend().fetch_iri(oid), expected=ActivityType.NOTE)
+        note = ap.parse_activity(get_backend().fetch_iri_sync(oid), expected=ActivityType.NOTE)
     except:
         try:
-            note = ap.parse_activity(get_backend().fetch_iri(oid), expected=ActivityType.VIDEO)
+            note = ap.parse_activity(get_backend().fetch_iri_sync(oid), expected=ActivityType.VIDEO)
         except:
             raise ActivityNotFoundError(
                 "Expected Note or Video ActivityType, but got something else"
@@ -260,7 +260,7 @@ def api_new_note():
     cc = [ID + "/followers"]
 
     if _reply:
-        reply = ap.fetch_remote_activity(_reply)
+        reply = ap.fetch_remote_activity_sync(_reply)
         cc.append(reply.attributedTo)
 
     for tag in tags:

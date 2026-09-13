@@ -1,7 +1,7 @@
 from flask import current_app
 import flask
-from little_boxes import activitypub as ap
-from little_boxes.activitypub import ActivityType
+from active_boxes import activitypub as ap
+from active_boxes.activitypub import ActivityType
 
 from activitypub import Box
 import activitypub
@@ -45,14 +45,14 @@ def tmp_migrate2():
             and activity["type"] == ActivityType.LIKE.value
         ):
             like = ap.parse_activity(activity["activity"])
-            obj = like.get_object()
+            obj = like.get_object_sync()
             DB.activities.update_one(
                 {"remote_id": like.id},
                 {"$set": {"meta.object": obj.to_dict(embed=True)}},
             )
         elif activity["type"] == ActivityType.ANNOUNCE.value:
             announce = ap.parse_activity(activity["activity"])
-            obj = announce.get_object()
+            obj = announce.get_object_sync()
             DB.activities.update_one(
                 {"remote_id": announce.id},
                 {"$set": {"meta.object": obj.to_dict(embed=True)}},
@@ -66,11 +66,11 @@ def tmp_migrate3():
     for activity in DB.activities.find():
         try:
             activity = ap.parse_activity(activity["activity"])
-            actor = activity.get_actor()
+            actor = activity.get_actor_sync()
             if actor.icon:
                 MEDIA_CACHE.cache(actor.icon["url"], Kind.ACTOR_ICON)
             if activity.type == ActivityType.CREATE.value:
-                for attachment in activity.get_object()._data.get("attachment", []):
+                for attachment in activity.get_object_sync()._data.get("attachment", []):
                     MEDIA_CACHE.cache(attachment["url"], Kind.ATTACHMENT)
         except Exception:
             current_app.logger.exception("failed")
@@ -85,12 +85,12 @@ def tmp_migrate4():
     ):
         try:
             activity = ap.parse_activity(activity["activity"])
-            if activity.get_object().type == ActivityType.FOLLOW.value:
+            if activity.get_object_sync().type == ActivityType.FOLLOW.value:
                 DB.activities.update_one(
-                    {"remote_id": activity.get_object().id},
+                    {"remote_id": activity.get_object_sync().id},
                     {"$set": {"meta.undo": True}},
                 )
-                print(activity.get_object().to_dict())
+                print(activity.get_object_sync().to_dict())
         except Exception:
             current_app.logger.exception("failed")
     for activity in DB.activities.find(
@@ -98,12 +98,12 @@ def tmp_migrate4():
     ):
         try:
             activity = ap.parse_activity(activity["activity"])
-            if activity.get_object().type == ActivityType.FOLLOW.value:
+            if activity.get_object_sync().type == ActivityType.FOLLOW.value:
                 DB.activities.update_one(
-                    {"remote_id": activity.get_object().id},
+                    {"remote_id": activity.get_object_sync().id},
                     {"$set": {"meta.undo": True}},
                 )
-                print(activity.get_object().to_dict())
+                print(activity.get_object_sync().to_dict())
         except Exception:
             current_app.logger.exception("failed")
     return "Done"
@@ -132,7 +132,7 @@ def tmp_migrate6():
                     {
                         "$set": {
                             "meta.object_actor": activitypub._actor_to_meta(
-                                a.get_object().get_actor()
+                                a.get_object_sync().get_actor_sync()
                             )
                         }
                     },

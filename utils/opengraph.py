@@ -1,10 +1,10 @@
 import logging
 
 from bs4 import BeautifulSoup
-from little_boxes import activitypub as ap
-from little_boxes.errors import NotAnActivityError
-from little_boxes.urlutils import check_url
-from little_boxes.urlutils import is_url_valid
+from active_boxes import activitypub as ap
+from active_boxes.errors import NotAnActivityError
+from active_boxes.urlutils import check_url
+from active_boxes.urlutils import is_url_valid
 import opengraph
 import requests
 

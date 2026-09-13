@@ -6,8 +6,8 @@ import subprocess
 import threading
 
 from itsdangerous import URLSafeTimedSerializer
-from little_boxes import strtobool
-from little_boxes.activitypub import DEFAULT_CTX
+from active_boxes import strtobool
+from active_boxes.activitypub import DEFAULT_CTX
 from neosqlite import ASCENDING
 from neosqlite import Connection
 import requests

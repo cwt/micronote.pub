@@ -10,9 +10,9 @@ from flask import session
 from flask import url_for
 import flask
 from flask_wtf.csrf import CSRFProtect
-from little_boxes import activitypub as ap
-from little_boxes.activitypub import ActivityType
-from little_boxes.activitypub import get_backend
+from active_boxes import activitypub as ap
+from active_boxes.activitypub import ActivityType
+from active_boxes.activitypub import get_backend
 from passlib.hash import bcrypt
 from u2flib_server import u2f
 
@@ -81,9 +81,9 @@ def admin_lookup():
             data = lookup(request.form.get("url"))
             if data.has_type(ActivityType.ANNOUNCE):
                 meta = dict(
-                    object=data.get_object().to_dict(),
-                    object_actor=data.get_object().get_actor().to_dict(),
-                    actor=data.get_actor().to_dict(),
+                    object=data.get_object_sync().to_dict(),
+                    object_actor=data.get_object_sync().get_actor_sync().to_dict(),
+                    actor=data.get_actor_sync().to_dict(),
                 )
 
         current_app.logger.debug(data)
@@ -130,15 +130,15 @@ def admin_new():
             data = dict(
                 meta={},
                 activity=dict(
-                    object=get_backend().fetch_iri(request.args.get("reply"))
+                    object=get_backend().fetch_iri_sync(request.args.get("reply"))
                 ),
             )
             reply = ap.parse_activity(data["activity"]["object"])
 
         reply_id = reply.id
         if reply.ACTIVITY_TYPE == ActivityType.CREATE:
-            reply_id = reply.get_object().id
-        actor = reply.get_actor()
+            reply_id = reply.get_object_sync().id
+        actor = reply.get_actor_sync()
         domain = urlparse(actor.id).netloc
         # FIXME(tsileo): if reply of reply, fetch all participants
         content = f"@{actor.preferredUsername}@{domain} "

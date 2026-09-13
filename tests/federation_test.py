@@ -5,7 +5,7 @@ from typing import Tuple
 
 import requests
 from html2text import html2text
-from little_boxes.collection import parse_collection
+from active_boxes.collection import parse_collection_sync as parse_collection
 
 
 def resp2plaintext(resp):

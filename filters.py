@@ -15,11 +15,11 @@ import flask
 from html2text import html2text
 from langdetect import DetectorFactory
 import langdetect
-from little_boxes import activitypub as ap
-from little_boxes.activitypub import _to_list
-from little_boxes.activitypub import get_backend
-from little_boxes.errors import ActivityGoneError
-from little_boxes.errors import ActivityNotFoundError
+from active_boxes import activitypub as ap
+from active_boxes.activitypub import _to_list
+from active_boxes.activitypub import get_backend
+from active_boxes.errors import ActivityGoneError
+from active_boxes.errors import ActivityNotFoundError
 from similar_text import similar_text
 import timeago
 from yandex.Translater import Translater, TranslaterLang
@@ -198,7 +198,7 @@ def get_actor(url):
         url = url.get("id")
     current_app.logger.debug(f"GET_ACTOR {url}")
     try:
-        return get_backend().fetch_iri(url)
+        return get_backend().fetch_iri_sync(url)
     except (ActivityNotFoundError, ActivityGoneError):
         return f"Deleted<{url}>"
     except Exception as exc:

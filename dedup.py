@@ -1,6 +1,6 @@
 from typing import List
 
-from little_boxes.activitypub import ActivityType
+from active_boxes.activitypub import ActivityType
 
 from activitypub import Box
 from config import DB

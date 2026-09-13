@@ -5,13 +5,13 @@ import random
 
 import requests
 from celery import Celery
-from little_boxes import activitypub as ap
-from little_boxes.errors import BadActivityError
-from little_boxes.errors import ActivityGoneError
-from little_boxes.errors import ActivityNotFoundError
-from little_boxes.errors import NotAnActivityError
-from little_boxes.httpsig import HTTPSigAuth
-from little_boxes.linked_data_sig import generate_signature
+from active_boxes import activitypub as ap
+from active_boxes.errors import BadActivityError
+from active_boxes.errors import ActivityGoneError
+from active_boxes.errors import ActivityNotFoundError
+from active_boxes.errors import NotAnActivityError
+from active_boxes.httpsig import HTTPSigAuth
+from active_boxes.linked_data_sig import generate_signature
 from requests.exceptions import HTTPError
 
 import activitypub
@@ -56,7 +56,7 @@ MAX_RETRIES = 9
 def process_new_activity(self, iri: str) -> None:
     """Process an activity received in the inbox"""
     try:
-        activity = ap.fetch_remote_activity(iri)
+        activity = ap.fetch_remote_activity_sync(iri)
         log.info(f"activity={activity!r}")
 
         # Is the activity expected?
@@ -67,7 +67,7 @@ def process_new_activity(self, iri: str) -> None:
         tag_stream = False
         if activity.has_type(ap.ActivityType.ANNOUNCE):
             try:
-                activity.get_object()
+                activity.get_object_sync()
                 tag_stream = True
             except (NotAnActivityError, BadActivityError):
                 log.exception(f"failed to get announce object for {activity!r}")
@@ -79,14 +79,14 @@ def process_new_activity(self, iri: str) -> None:
                 should_delete = True
 
         elif activity.has_type(ap.ActivityType.CREATE):
-            note = activity.get_object()
+            note = activity.get_object_sync()
             # Make the note part of the stream if it's not a reply, or if it's a local reply
             if not note.inReplyTo or note.inReplyTo.startswith(ID):
                 tag_stream = True
 
             if note.inReplyTo:
                 try:
-                    reply = ap.fetch_remote_activity(note.inReplyTo)
+                    reply = ap.fetch_remote_activity_sync(note.inReplyTo)
                     if (
                         reply.id.startswith(ID) or reply.has_mention(ID)
                     ) and activity.is_public():
@@ -113,7 +113,7 @@ def process_new_activity(self, iri: str) -> None:
 
         elif activity.has_type(ap.ActivityType.DELETE):
             note = DB.activities.find_one(
-                {"activity.object.id": activity.get_object().id}
+                {"activity.object.id": activity.get_object_sync().id}
             )
             if note and note["meta"].get("forwarded", False):
                 # If the activity was originally forwarded, forward the delete too
@@ -157,10 +157,10 @@ def process_new_activity(self, iri: str) -> None:
 @app.task(bind=True, max_retries=MAX_RETRIES)  # noqa: C901
 def fetch_og_metadata(self, iri: str) -> None:
     try:
-        activity = ap.fetch_remote_activity(iri)
+        activity = ap.fetch_remote_activity_sync(iri)
         log.info(f"activity={activity!r}")
         if activity.has_type(ap.ActivityType.CREATE):
-            note = activity.get_object()
+            note = activity.get_object_sync()
             links = opengraph.links_from_note(note.to_dict())
             og_metadata = opengraph.fetch_og_metadata(USER_AGENT, links)
             for og in og_metadata:
@@ -192,16 +192,16 @@ def fetch_og_metadata(self, iri: str) -> None:
 @app.task(bind=True, max_retries=MAX_RETRIES)
 def cache_object(self, iri: str) -> None:
     try:
-        activity = ap.fetch_remote_activity(iri)
+        activity = ap.fetch_remote_activity_sync(iri)
         log.info(f"activity={activity!r}")
 
-        obj = activity.get_object()
+        obj = activity.get_object_sync()
         DB.activities.update_one(
             {"remote_id": activity.id},
             {
                 "$set": {
                     "meta.object": obj.to_dict(embed=True),
-                    "meta.object_actor": activitypub._actor_to_meta(obj.get_actor()),
+                    "meta.object_actor": activitypub._actor_to_meta(obj.get_actor_sync()),
                 }
             },
         )
@@ -216,7 +216,7 @@ def cache_object(self, iri: str) -> None:
 @app.task(bind=True, max_retries=MAX_RETRIES)
 def cache_actor(self, iri: str, also_cache_attachments: bool = True) -> None:
     try:
-        activity = ap.fetch_remote_activity(iri)
+        activity = ap.fetch_remote_activity_sync(iri)
         log.info(f"activity={activity!r}")
 
         if activity.has_type(ap.ActivityType.CREATE):
@@ -225,7 +225,7 @@ def cache_actor(self, iri: str, also_cache_attachments: bool = True) -> None:
         if activity.has_type([ap.ActivityType.LIKE, ap.ActivityType.ANNOUNCE]):
             cache_object.delay(iri)
 
-        actor = activity.get_actor()
+        actor = activity.get_actor_sync()
 
         cache_actor_with_inbox = False
         if activity.has_type(ap.ActivityType.FOLLOW):
@@ -239,7 +239,7 @@ def cache_actor(self, iri: str, also_cache_attachments: bool = True) -> None:
                     {
                         "$set": {
                             "meta.object": activitypub._actor_to_meta(
-                                activity.get_object()
+                                activity.get_object_sync()
                             )
                         }
                     },
@@ -272,11 +272,11 @@ def cache_actor(self, iri: str, also_cache_attachments: bool = True) -> None:
 @app.task(bind=True, max_retries=MAX_RETRIES)
 def cache_attachments(self, iri: str) -> None:
     try:
-        activity = ap.fetch_remote_activity(iri)
+        activity = ap.fetch_remote_activity_sync(iri)
         log.info(f"activity={activity!r}")
         # Generates thumbnails for the actor's icon and the attachments if any
 
-        actor = activity.get_actor()
+        actor = activity.get_actor_sync()
 
         # Update the cached actor
         DB.actors.update_one(
@@ -289,7 +289,7 @@ def cache_attachments(self, iri: str) -> None:
             MEDIA_CACHE.cache(actor.icon["url"], Kind.ACTOR_ICON)
 
         if activity.has_type(ap.ActivityType.CREATE):
-            for attachment in activity.get_object()._data.get("attachment", []):
+            for attachment in activity.get_object_sync()._data.get("attachment", []):
                 if (
                     attachment.get("mediaType", "").startswith("image/")
                     or attachment.get("type") == ap.ActivityType.IMAGE.value
@@ -310,7 +310,7 @@ def cache_attachments(self, iri: str) -> None:
 
 def post_to_inbox(activity: ap.BaseActivity) -> None:
     # Check for Block activity
-    actor = activity.get_actor()
+    actor = activity.get_actor_sync()
     if back.outbox_is_blocked(MY_PERSON, actor.id):
         log.info(
             f"actor {actor!r} is blocked, dropping the received activity {activity!r}"
@@ -330,10 +330,10 @@ def post_to_inbox(activity: ap.BaseActivity) -> None:
 
 def invalidate_cache(activity):
     if activity.has_type(ap.ActivityType.LIKE):
-        if activity.get_object().id.startswith(BASE_URL):
+        if activity.get_object_sync().id.startswith(BASE_URL):
             DB.cache2.delete_many({})
     elif activity.has_type(ap.ActivityType.ANNOUNCE):
-        if activity.get_object().id.startswith(BASE_URL):
+        if activity.get_object_sync().id.startswith(BASE_URL):
             DB.cache2.delete_many({})
     elif activity.has_type(ap.ActivityType.UNDO):
         DB.cache2.delete_many({})
@@ -343,7 +343,7 @@ def invalidate_cache(activity):
     elif activity.has_type(ap.ActivityType.UPDATE):
         DB.cache2.delete_many({})
     elif activity.has_type(ap.ActivityType.CREATE):
-        note = activity.get_object()
+        note = activity.get_object_sync()
         if not note.inReplyTo or note.inReplyTo.startswith(ID):
             DB.cache2.delete_many({})
         # FIXME(tsileo): check if it's a reply of a reply
@@ -351,7 +351,7 @@ def invalidate_cache(activity):
 @app.task(bind=True, max_retries=MAX_RETRIES)  # noqa: C901
 def finish_post_to_inbox(self, iri: str) -> None:
     try:
-        activity = ap.fetch_remote_activity(iri)
+        activity = ap.fetch_remote_activity_sync(iri)
         log.info(f"activity={activity!r}")
 
         if activity.has_type(ap.ActivityType.DELETE):
@@ -369,7 +369,7 @@ def finish_post_to_inbox(self, iri: str) -> None:
             accept = ap.Accept(actor=ID, object=activity.to_dict(embed=True))
             post_to_outbox(accept)
         elif activity.has_type(ap.ActivityType.UNDO):
-            obj = activity.get_object()
+            obj = activity.get_object_sync()
             if obj.has_type(ap.ActivityType.LIKE):
                 back.inbox_undo_like(MY_PERSON, obj)
             elif obj.has_type(ap.ActivityType.ANNOUNCE):
@@ -404,7 +404,7 @@ def post_to_outbox(activity: ap.BaseActivity) -> str:
 @app.task(bind=True, max_retries=MAX_RETRIES)  # noqa:C901
 def finish_post_to_outbox(self, iri: str) -> None:
     try:
-        activity = ap.fetch_remote_activity(iri)
+        activity = ap.fetch_remote_activity_sync(iri)
         log.info(f"activity={activity!r}")
 
         recipients = activity.recipients()
@@ -420,7 +420,7 @@ def finish_post_to_outbox(self, iri: str) -> None:
         elif activity.has_type(ap.ActivityType.LIKE):
             back.outbox_like(MY_PERSON, activity)
         elif activity.has_type(ap.ActivityType.UNDO):
-            obj = activity.get_object()
+            obj = activity.get_object_sync()
             if obj.has_type(ap.ActivityType.LIKE):
                 back.outbox_undo_like(MY_PERSON, obj)
             elif obj.has_type(ap.ActivityType.ANNOUNCE):
@@ -447,7 +447,7 @@ def finish_post_to_outbox(self, iri: str) -> None:
 @app.task(bind=True, max_retries=MAX_RETRIES)  # noqa:C901
 def forward_activity(self, iri: str) -> None:
     try:
-        activity = ap.fetch_remote_activity(iri)
+        activity = ap.fetch_remote_activity_sync(iri)
         recipients = back.followers_as_recipients()
         log.debug(f"Forwarding {activity!r} to {recipients}")
         activity = ap.clean_activity(activity.to_dict())
@@ -471,17 +471,15 @@ def post_to_remote_inbox(self, payload: str, to: str) -> None:
         if "signature" not in signed_payload:
             generate_signature(signed_payload, KEY)
 
+        body = activitypub.json_dumps(signed_payload)
+        headers = SigAuth.sign_sync("POST", to, {
+            "Content-Type": HEADERS[1],
+            "Accept": HEADERS[1],
+            "User-Agent": USER_AGENT,
+        }, body)
+
         log.info("to=%s", to)
-        resp = requests.post(
-            to,
-            data=json.dumps(signed_payload),
-            auth=SigAuth,
-            headers={
-                "Content-Type": HEADERS[1],
-                "Accept": HEADERS[1],
-                "User-Agent": USER_AGENT,
-            },
-        )
+        resp = requests.post(to, data=body, headers=headers)
         log.info("resp=%s", resp)
         log.info("resp_body=%s", resp.text)
         resp.raise_for_status()

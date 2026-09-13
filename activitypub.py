@@ -12,13 +12,13 @@ from typing import Optional
 from cachetools import LRUCache
 from feedgen.feed import FeedGenerator
 from html2text import html2text
-from little_boxes import activitypub as ap
-from little_boxes import strtobool
-from little_boxes.activitypub import _to_list
-from little_boxes.backend import Backend
-from little_boxes.errors import ActivityGoneError
-from little_boxes.errors import Error
-from little_boxes.errors import NotAnActivityError
+from active_boxes import activitypub as ap
+from active_boxes import strtobool
+from active_boxes.activitypub import _to_list
+from active_boxes.backend import Backend
+from active_boxes.errors import ActivityGoneError
+from active_boxes.errors import Error
+from active_boxes.errors import NotAnActivityError
 from neosqlite.objectid import ObjectId
 
 from config import BASE_URL
@@ -195,7 +195,7 @@ class MicroblogPubBackend(Backend):
             )
         )
 
-    def _fetch_iri(self, iri: str) -> ap.ObjectType:
+    def _fetch_iri(self, iri: str) -> Optional[ap.ObjectType]:
         if iri == ME["id"]:
             return ME
 
@@ -220,11 +220,9 @@ class MicroblogPubBackend(Backend):
                     raise ActivityGoneError(f"{iri} is gone")
                 return data["activity"]
 
-        # Fetch the URL via HTTP
-        logger.info(f"dereference {iri} via HTTP")
-        return super().fetch_iri(iri)
+        return None
 
-    def fetch_iri(self, iri: str) -> ap.ObjectType:
+    async def fetch_iri(self, iri: str, **kwargs) -> ap.ObjectType:
         if iri == ME["id"]:
             return ME
 
@@ -240,6 +238,11 @@ class MicroblogPubBackend(Backend):
         #    return data["data"]
 
         data = self._fetch_iri(iri)
+        if data is None:
+            # Fetch the URL via HTTP
+            logger.info(f"dereference {iri} via HTTP")
+            return await super().fetch_iri(iri, **kwargs)
+
         logger.debug(f"_fetch_iri({iri!r}) == {data!r}")
         if ap._has_type(data["type"], ap.ACTOR_TYPES):
             logger.debug(f"caching actor {iri}")
@@ -276,7 +279,7 @@ class MicroblogPubBackend(Backend):
 
     @ensure_it_is_me
     def inbox_like(self, as_actor: ap.Person, like: ap.Like) -> None:
-        obj = like.get_object()
+        obj = like.get_object_sync()
         # Update the meta counter if the object is published by the server
         self.DB.activities.update_one(
             {"box": Box.OUTBOX.value, "activity.object.id": obj.id},
@@ -285,7 +288,7 @@ class MicroblogPubBackend(Backend):
 
     @ensure_it_is_me
     def inbox_undo_like(self, as_actor: ap.Person, like: ap.Like) -> None:
-        obj = like.get_object()
+        obj = like.get_object_sync()
         # Update the meta counter if the object is published by the server
         self.DB.activities.update_one(
             {"box": Box.OUTBOX.value, "activity.object.id": obj.id},
@@ -295,7 +298,7 @@ class MicroblogPubBackend(Backend):
 
     @ensure_it_is_me
     def outbox_like(self, as_actor: ap.Person, like: ap.Like) -> None:
-        obj = like.get_object()
+        obj = like.get_object_sync()
         self.DB.activities.update_one(
             {"activity.object.id": obj.id},
             {"$inc": {"meta.count_like": 1}, "$set": {"meta.liked": like.id}},
@@ -303,7 +306,7 @@ class MicroblogPubBackend(Backend):
 
     @ensure_it_is_me
     def outbox_undo_like(self, as_actor: ap.Person, like: ap.Like) -> None:
-        obj = like.get_object()
+        obj = like.get_object_sync()
         self.DB.activities.update_one(
             {"activity.object.id": obj.id},
             {"$inc": {"meta.count_like":-1}, "$set": {"meta.liked": False}},
@@ -315,7 +318,7 @@ class MicroblogPubBackend(Backend):
         # TODO(tsileo): actually drop it without storing it and better logging, also move the check somewhere else
         # or remove it?
         try:
-            obj = announce.get_object()
+            obj = announce.get_object_sync()
         except NotAnActivityError:
             logger.exception(
                 f'received an Annouce referencing an OStatus notice ({announce._data["object"]}), dropping the message'
@@ -327,7 +330,7 @@ class MicroblogPubBackend(Backend):
             {
                 "$set": {
                     "meta.object": obj.to_dict(embed=True),
-                    "meta.object_actor": _actor_to_meta(obj.get_actor()),
+                    "meta.object_actor": _actor_to_meta(obj.get_actor_sync()),
                 }
             },
         )
@@ -337,7 +340,7 @@ class MicroblogPubBackend(Backend):
 
     @ensure_it_is_me
     def inbox_undo_announce(self, as_actor: ap.Person, announce: ap.Announce) -> None:
-        obj = announce.get_object()
+        obj = announce.get_object_sync()
         # Update the meta counter if the object is published by the server
         self.DB.activities.update_one(
             {"activity.object.id": obj.id}, {"$inc": {"meta.count_boost":-1}}
@@ -348,13 +351,13 @@ class MicroblogPubBackend(Backend):
 
     @ensure_it_is_me
     def outbox_announce(self, as_actor: ap.Person, announce: ap.Announce) -> None:
-        obj = announce.get_object()
+        obj = announce.get_object_sync()
         self.DB.activities.update_one(
             {"remote_id": announce.id},
             {
                 "$set": {
                     "meta.object": obj.to_dict(embed=True),
-                    "meta.object_actor": _actor_to_meta(obj.get_actor()),
+                    "meta.object_actor": _actor_to_meta(obj.get_actor_sync()),
                 }
             },
         )
@@ -365,7 +368,7 @@ class MicroblogPubBackend(Backend):
 
     @ensure_it_is_me
     def outbox_undo_announce(self, as_actor: ap.Person, announce: ap.Announce) -> None:
-        obj = announce.get_object()
+        obj = announce.get_object_sync()
         self.DB.activities.update_one(
             {"activity.object.id": obj.id}, {"$set": {"meta.boosted": False}}
         )
@@ -375,7 +378,7 @@ class MicroblogPubBackend(Backend):
 
     @ensure_it_is_me
     def inbox_delete(self, as_actor: ap.Person, delete: ap.Delete) -> None:
-        obj = delete.get_object()
+        obj = delete.get_object_sync()
         logger.debug("delete object={obj!r}")
         self.DB.activities.update_one(
             {"activity.object.id": obj.id}, {"$set": {"meta.deleted": True}}
@@ -383,10 +386,10 @@ class MicroblogPubBackend(Backend):
 
         logger.info(f"inbox_delete handle_replies obj={obj!r}")
         in_reply_to = obj.inReplyTo
-        if delete.get_object().ACTIVITY_TYPE != ap.ActivityType.NOTE:
+        if delete.get_object_sync().ACTIVITY_TYPE != ap.ActivityType.NOTE:
             in_reply_to = self.DB.activities.find_one(
                 {
-                    "activity.object.id": delete.get_object().id,
+                    "activity.object.id": delete.get_object_sync().id,
                     "type": ap.ActivityType.CREATE.value,
                 }
             )["activity"]["object"].get("inReplyTo")
@@ -402,19 +405,19 @@ class MicroblogPubBackend(Backend):
     @ensure_it_is_me
     def outbox_delete(self, as_actor: ap.Person, delete: ap.Delete) -> None:
         self.DB.activities.update_one(
-            {"activity.object.id": delete.get_object().id},
+            {"activity.object.id": delete.get_object_sync().id},
             {"$set": {"meta.deleted": True}},
         )
-        obj = delete.get_object()
-        if delete.get_object().ACTIVITY_TYPE != ap.ActivityType.NOTE:
+        obj = delete.get_object_sync()
+        if delete.get_object_sync().ACTIVITY_TYPE != ap.ActivityType.NOTE:
             obj = ap.parse_activity(
                 self.DB.activities.find_one(
                     {
-                        "activity.object.id": delete.get_object().id,
+                        "activity.object.id": delete.get_object_sync().id,
                         "type": ap.ActivityType.CREATE.value,
                     }
                 )["activity"]
-            ).get_object()
+            ).get_object_sync()
 
         self.DB.activities.update_many(
             {"meta.object.id": obj.id},
@@ -425,7 +428,7 @@ class MicroblogPubBackend(Backend):
 
     @ensure_it_is_me
     def inbox_update(self, as_actor: ap.Person, update: ap.Update) -> None:
-        obj = update.get_object()
+        obj = update.get_object_sync()
         if obj.ACTIVITY_TYPE == ap.ActivityType.NOTE:
             self.DB.activities.update_one(
                 {"activity.object.id": obj.id},
@@ -482,13 +485,13 @@ class MicroblogPubBackend(Backend):
     def _handle_replies(self, as_actor: ap.Person, create: ap.Create) -> None:
         """Go up to the root reply, store unknown replies in the `threads` DB and set the "meta.thread_root_parent"
         key to make it easy to query a whole thread."""
-        in_reply_to = create.get_object().inReplyTo
+        in_reply_to = create.get_object_sync().inReplyTo
         if not in_reply_to:
             return
 
         new_threads = []
         root_reply = in_reply_to
-        reply = ap.fetch_remote_activity(root_reply)
+        reply = ap.fetch_remote_activity_sync(root_reply)
 
         creply = self.DB.activities.find_one_and_update(
             {"activity.object.id": in_reply_to},
@@ -504,7 +507,7 @@ class MicroblogPubBackend(Backend):
             if not in_reply_to:
                 break
             root_reply = in_reply_to
-            reply = ap.fetch_remote_activity(root_reply)
+            reply = ap.fetch_remote_activity_sync(root_reply)
             q = {"activity.object.id": root_reply}
             if not self.DB.activities.count_documents(q):
                 self.save(Box.REPLIES, reply)
@@ -535,7 +538,7 @@ class MicroblogPubBackend(Backend):
         payload = json_dumps(activity)
         for recp in recipients:
             logger.debug(f"posting to {recp}")
-            self.post_to_remote_inbox(self.get_actor(), payload, recp)
+            self.post_to_remote_inbox(self.get_actor_sync(), payload, recp)
 
 
 def gen_feed():
@@ -610,7 +613,7 @@ def build_inbox_json_feed(
         q["_id"] = {"$lt": request_cursor}
 
     for item in DB.activities.find(q, limit=50).sort("_id", -1):
-        actor = ap.get_backend().fetch_iri(item["activity"]["actor"])
+        actor = ap.get_backend().fetch_iri_sync(item["activity"]["actor"])
         data.append(
             {
                 "id": item["activity"]["id"],
