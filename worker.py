@@ -14,18 +14,16 @@ import requests
 from active_boxes import activitypub as ap
 from active_boxes.activitypub import _to_list
 from active_boxes.errors import ActivityGoneError, ActivityNotFoundError, BadActivityError, NotAnActivityError
-from active_boxes.httpsig import HTTPSigAuth
 from active_boxes.linked_data_sig import generate_signature
 from requests.exceptions import HTTPError
 
 import activitypub
 import tasks
-from config import BASE_URL, DB, HEADERS, ID, KEY, MEDIA_CACHE, USER_AGENT, create_db_connection
+from config import BASE_URL, DB, ID, KEY, MEDIA_CACHE, USER_AGENT, create_db_connection
 from tasks import MAX_RETRIES, MY_PERSON, STATUS_FAILED, STATUS_PENDING, STATUS_PROCESSING, back, enqueue_job, log
 from utils import opengraph
+from utils.delivery import sign_delivery_request
 from utils.media import Kind
-
-SigAuth = HTTPSigAuth(KEY)
 
 RESUME_TOKEN_ID = "jobs_watch"
 SWEEP_INTERVAL_SECONDS = 60
@@ -388,17 +386,19 @@ def post_to_remote_inbox(job) -> None:
 
         # Don't overwrite the signature if we're forwarding an activity
         if "signature" not in signed_payload:
-            generate_signature(signed_payload, KEY)
+            try:
+                generate_signature(signed_payload, KEY)
+            except Exception:
+                # Linked-data signing resolves the w3id identity context,
+                # which no longer dereferences; HTTP Signatures below still
+                # authenticate the delivery, so proceed without it.
+                log.exception("LD signature failed, delivering with HTTP signature only")
 
         body = activitypub.json_dumps(signed_payload)
-        headers = SigAuth.sign_sync("POST", to, {
-            "Content-Type": HEADERS[1],
-            "Accept": HEADERS[1],
-            "User-Agent": USER_AGENT,
-        }, body)
+        headers = sign_delivery_request(to, body, KEY, USER_AGENT)
 
         log.info("to=%s", to)
-        resp = requests.post(to, data=body, headers=headers)
+        resp = requests.post(to, data=body, headers=headers, timeout=15)
         log.info("resp=%s", resp)
         log.info("resp_body=%s", resp.text)
         resp.raise_for_status()
