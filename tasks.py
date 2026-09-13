@@ -60,6 +60,7 @@ def post_to_inbox(activity: ap.BaseActivity) -> None:
     if back.inbox_check_duplicate(MY_PERSON, activity.id):
         # The activity is already in the inbox
         log.info(f"received duplicate activity {activity!r}, dropping it")
+        return
 
     back.save(Box.INBOX, activity)
     enqueue_job("process_new_activity", iri=activity.id)

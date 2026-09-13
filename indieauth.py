@@ -40,6 +40,13 @@ def _get_prop(props, name, default=None):
 
 
 def get_client_id_data(url):
+    if not url or not url.startswith(("http://", "https://")):
+        return dict(logo=None, name=url, url=url)
+    try:
+        from active_boxes.urlutils import check_url
+        check_url(url)
+    except Exception:
+        return dict(logo=None, name=url, url=url)
     data = mf2py.parse(url=url)
     for item in data["items"]:
         if "h-x-app" in item["type"] or "h-app" in item["type"]:
@@ -173,9 +180,11 @@ def token_endpoint():
         return build_auth_resp({"me": me, "scope": scope, "access_token": token})
 
     # Token verification
-    token = request.headers.get("Authorization").replace("Bearer ", "")
+    authorization = request.headers.get("Authorization", "")
+    if not authorization.startswith("Bearer "):
+        abort(403)
     try:
-        payload = JWT.loads(token)
+        payload = JWT.loads(authorization.replace("Bearer ", "", 1))
     except BadSignature:
         abort(403)
 

@@ -7,3 +7,10 @@ https: true
 image_max_size:
   width: 1920
   height: 1920
+# Optional:
+# theme:
+#   style: light  # or dark
+#   color: '#1d781d'
+# timezone_hours: 0
+# cdn_url: ''
+# hide_following: true

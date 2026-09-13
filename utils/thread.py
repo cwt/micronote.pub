@@ -4,13 +4,16 @@ from config import DB
 
 
 def published_of(doc):
-    return doc["activity"]["object"]["published"]
+    return doc["activity"]["object"].get("published") or ""
 
 
 def _build_thread(data, include_children=True):
     data["_requested"] = True
     current_app.logger.debug(data)
-    root_id = data["meta"].get("thread_root_parent", data["activity"]["object"]["id"])
+    root_object = data["activity"].get("object")
+    if not isinstance(root_object, dict):
+        return [data]
+    root_id = data["meta"].get("thread_root_parent", root_object["id"])
 
     query = {
         "$or": [
@@ -47,7 +50,10 @@ def _build_thread(data, include_children=True):
         rep_id = rep["activity"]["object"]["id"]
         if rep_id == root_id:
             continue
-        reply_of = rep["activity"]["object"]["inReplyTo"]
+        reply_of = rep["activity"]["object"].get("inReplyTo")
+        if not reply_of:
+            current_app.logger.info(f"{rep_id} has no inReplyTo, skipping {rep}")
+            continue
         try:
             idx[reply_of]["_nodes"].append(rep)
         except KeyError:

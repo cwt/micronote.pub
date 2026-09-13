@@ -9,9 +9,10 @@ from active_boxes import activitypub as ap
 from active_boxes import strtobool
 from active_boxes.activitypub import _to_list
 from active_boxes.backend import Backend
-from active_boxes.errors import ActivityGoneError, Error, NotAnActivityError
+from active_boxes.errors import ActivityGoneError, ActivityNotFoundError, Error, NotAnActivityError
 from cachetools import LRUCache
 from feedgen.feed import FeedGenerator
+from flask import abort
 from html2text import html2text
 from neosqlite.objectid import ObjectId
 
@@ -364,7 +365,7 @@ class MicroblogPubBackend(Backend):
     @ensure_it_is_me
     def inbox_delete(self, as_actor: ap.Person, delete: ap.Delete) -> None:
         obj = delete.get_object_sync()
-        logger.debug("delete object={obj!r}")
+        logger.debug(f"delete object={obj!r}")
         self.DB.activities.update_one(
             {"activity.object.id": obj.id}, {"$set": {"meta.deleted": True}}
         )
@@ -372,12 +373,15 @@ class MicroblogPubBackend(Backend):
         logger.info(f"inbox_delete handle_replies obj={obj!r}")
         in_reply_to = obj.inReplyTo
         if delete.get_object_sync().ACTIVITY_TYPE != ap.ActivityType.NOTE:
-            in_reply_to = self.DB.activities.find_one(
+            create_doc = self.DB.activities.find_one(
                 {
                     "activity.object.id": delete.get_object_sync().id,
                     "type": ap.ActivityType.CREATE.value,
                 }
-            )["activity"]["object"].get("inReplyTo")
+            )
+            if not create_doc:
+                return
+            in_reply_to = create_doc["activity"]["object"].get("inReplyTo")
 
         # Fake a Undo so any related Like/Announce doesn't appear on the web UI
         self.DB.activities.update_many(
@@ -395,14 +399,15 @@ class MicroblogPubBackend(Backend):
         )
         obj = delete.get_object_sync()
         if delete.get_object_sync().ACTIVITY_TYPE != ap.ActivityType.NOTE:
-            obj = ap.parse_activity(
-                self.DB.activities.find_one(
-                    {
-                        "activity.object.id": delete.get_object_sync().id,
-                        "type": ap.ActivityType.CREATE.value,
-                    }
-                )["activity"]
-            ).get_object_sync()
+            create_doc = self.DB.activities.find_one(
+                {
+                    "activity.object.id": delete.get_object_sync().id,
+                    "type": ap.ActivityType.CREATE.value,
+                }
+            )
+            if not create_doc:
+                return
+            obj = ap.parse_activity(create_doc["activity"]).get_object_sync()
 
         self.DB.activities.update_many(
             {"meta.object.id": obj.id},
@@ -459,7 +464,7 @@ class MicroblogPubBackend(Backend):
         self, as_actor: ap.Person, in_reply_to: str | None
     ) -> None:
         if not in_reply_to:
-            pass
+            return
 
         self.DB.activities.update_one(
             {"activity.object.id": in_reply_to},
@@ -476,7 +481,11 @@ class MicroblogPubBackend(Backend):
 
         new_threads = []
         root_reply = in_reply_to
-        reply = ap.fetch_remote_activity_sync(root_reply)
+        try:
+            reply = ap.fetch_remote_activity_sync(root_reply)
+        except (ActivityGoneError, ActivityNotFoundError, NotAnActivityError):
+            logger.info(f"reply target {root_reply} not fetchable, skipping thread walk")
+            return
 
         creply = self.DB.activities.find_one_and_update(
             {"activity.object.id": in_reply_to},
@@ -487,12 +496,18 @@ class MicroblogPubBackend(Backend):
             self.save(Box.REPLIES, reply)
             new_threads.append(reply.id)
 
+        seen = {root_reply}
         while reply is not None:
             in_reply_to = reply.inReplyTo
-            if not in_reply_to:
+            if not in_reply_to or in_reply_to in seen:
                 break
+            seen.add(in_reply_to)
             root_reply = in_reply_to
-            reply = ap.fetch_remote_activity_sync(root_reply)
+            try:
+                reply = ap.fetch_remote_activity_sync(root_reply)
+            except (ActivityGoneError, ActivityNotFoundError, NotAnActivityError):
+                logger.info(f"reply target {root_reply} not fetchable, stopping thread walk")
+                break
             q = {"activity.object.id": root_reply}
             if not self.DB.activities.count_documents(q):
                 self.save(Box.REPLIES, reply)
@@ -595,7 +610,10 @@ def build_inbox_json_feed(
         "box": Box.INBOX.value,
     }
     if request_cursor:
-        q["_id"] = {"$lt": request_cursor}
+        try:
+            q["_id"] = {"$lt": ObjectId(request_cursor)}
+        except Exception:
+            abort(400)
 
     for item in DB.activities.find(q, limit=50).sort("_id", -1):
         actor = ap.get_backend().fetch_iri_sync(item["activity"]["actor"])
@@ -656,7 +674,10 @@ def build_ordered_collection(
         q = {}
 
     if cursor:
-        q["_id"] = {"$lt": ObjectId(cursor)}
+        try:
+            q["_id"] = {"$lt": ObjectId(cursor)}
+        except Exception:
+            abort(400)
     data = list(col.find(q, limit=limit).sort("_id", -1))
 
     if not data:
@@ -723,9 +744,6 @@ def build_ordered_collection(
     }
     if len(data) == limit:
         resp["next"] = BASE_URL + "/" + col_name + "?cursor=" + next_page_cursor
-
-    if first_page:
-        return resp["first"]
 
     # XXX(tsileo): implements prev with prev=<first item cursor>?
 

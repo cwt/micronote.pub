@@ -1,10 +1,13 @@
-from flask import request
+from flask import abort, request
 from neosqlite.objectid import ObjectId
 
 
 def paginated_query(db, q, limit=25, sort_key="_id"):
     def sort_key_as_str(doc):
         return str(doc[sort_key])
+
+    # Copy: cursor keys are added below and must not leak into the caller.
+    q = dict(q)
 
     older_than = newer_than = None
     query_sort = -1
@@ -16,13 +19,21 @@ def paginated_query(db, q, limit=25, sort_key="_id"):
     query_newer_than = request.args.get("newer_than")
 
     if query_older_than:
-        q["_id"] = {"$lt": ObjectId(query_older_than)}
+        try:
+            q["_id"] = {"$lt": ObjectId(query_older_than)}
+        except Exception:
+            abort(400)
     elif query_newer_than:
-        q["_id"] = {"$gt": ObjectId(query_newer_than)}
+        try:
+            q["_id"] = {"$gt": ObjectId(query_newer_than)}
+        except Exception:
+            abort(400)
         query_sort = 1
 
     outbox_data = list(db.find(q, limit=limit + 1).sort(sort_key, query_sort))
     outbox_len = len(outbox_data)
+    if not outbox_data:
+        return [], None, None
     outbox_data = sorted(
         outbox_data[:limit], key=sort_key_as_str, reverse=True
     )

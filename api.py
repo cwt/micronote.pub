@@ -4,9 +4,9 @@ from io import BytesIO
 
 import flask
 from active_boxes import activitypub as ap
-from active_boxes.activitypub import ActivityType, get_backend
+from active_boxes.activitypub import ActivityType, _to_list, get_backend
 from active_boxes.content_helper import parse_markdown
-from active_boxes.errors import ActivityNotFoundError, NotFromOutboxError
+from active_boxes.errors import ActivityGoneError, ActivityNotFoundError, NotFromOutboxError
 from flask import Response, abort, current_app, redirect, request, session
 from flask import jsonify as flask_jsonify
 from flask_wtf.csrf import CSRFProtect
@@ -68,7 +68,7 @@ def api_user_key():
 
 def _user_api_arg(key: str, **kwargs):
     """Try to get the given key from the requests, try JSON body, form data and query arg."""
-    if request.is_json:
+    if request.is_json and isinstance(request.json, dict):
         oid = request.json.get(key)
     else:
         oid = request.args.get(key) or request.form.get(key)
@@ -85,14 +85,16 @@ def _user_api_arg(key: str, **kwargs):
 
 
 def _user_api_get_note(from_outbox: bool=False):
+    from active_boxes.errors import UnexpectedActivityTypeError
     oid = _user_api_arg("id")
     current_app.logger.info(f"fetching {oid}")
+    raw = get_backend().fetch_iri_sync(oid)
     try:
-        note = ap.parse_activity(get_backend().fetch_iri_sync(oid), expected=ActivityType.NOTE)
-    except Exception:
+        note = ap.parse_activity(raw, expected=ActivityType.NOTE)
+    except UnexpectedActivityTypeError:
         try:
-            note = ap.parse_activity(get_backend().fetch_iri_sync(oid), expected=ActivityType.VIDEO)
-        except Exception as err:
+            note = ap.parse_activity(raw, expected=ActivityType.VIDEO)
+        except UnexpectedActivityTypeError as err:
             raise ActivityNotFoundError(
                 "Expected Note or Video ActivityType, but got something else"
             ) from err
@@ -242,8 +244,11 @@ def api_new_note():
     cc = [ID + "/followers"]
 
     if _reply:
-        reply = ap.fetch_remote_activity_sync(_reply)
-        cc.append(reply.attributedTo)
+        try:
+            reply = ap.fetch_remote_activity_sync(_reply)
+        except (ActivityGoneError, ActivityNotFoundError) as err:
+            raise ActivityNotFoundError(f"cannot fetch reply target {_reply}") from err
+        cc.extend(_to_list(reply.attributedTo))
 
     for tag in tags:
         if tag["type"] == "Mention":

@@ -252,11 +252,16 @@ def remote_follow():
         return render_template("remote_follow.html")
 
     csrf.protect()
-    profile = request.form.get("profile")
+    profile = (request.form.get("profile") or "").strip()
+    if not profile:
+        abort(400)
     if not profile.startswith("@"):
         profile = f"@{profile}"
+    template = get_remote_follow_template_sync(profile)
+    if not template:
+        abort(404)
     return redirect(
-        get_remote_follow_template_sync(profile).format(uri=f"{USERNAME}@{DOMAIN}")
+        template.format(uri=f"{USERNAME}@{DOMAIN}")
     )
 
 
@@ -268,9 +273,10 @@ def authorize_follow():
             "authorize_remote_follow.html", profile=request.args.get("profile")
         )
 
-    actor = get_actor_url_sync(request.form.get("profile"))
+    profile = request.form.get("profile")
+    actor = get_actor_url_sync(profile) if profile else None
     if not actor:
-        abort(500)
+        abort(404)
 
     q = {
         "box": Box.OUTBOX.value,
@@ -871,6 +877,8 @@ def inbox():
         )
 
     data = request.get_json(force=True)
+    if not isinstance(data, dict) or "id" not in data or "type" not in data:
+        abort(400)
     logger.debug(f"req_headers={request.headers}")
     logger.debug(f"raw_data={data}")
     try:
@@ -887,13 +895,16 @@ def inbox():
         except ActivityGoneError:
             # XXX Mastodon sends Delete activities that are not dereferencable, it's the actor url with #delete
             # appended, so an `ActivityGoneError` kind of ensure it's "legit"
-            if data["type"] == ActivityType.DELETE.value and data["id"].startswith(
-                data["object"]
+            if (
+                data["type"] == ActivityType.DELETE.value
+                and isinstance(data.get("object"), str)
+                and data["id"].startswith(data["object"])
             ):
                 logger.info(f"received a Delete for an actor {data!r}")
                 if get_backend().inbox_check_duplicate(MY_PERSON, data["id"]):
                     # The activity is already in the inbox
                     logger.info(f"received duplicate activity {data!r}, dropping it")
+                    return Response(status=201)
 
                 DB.activities.insert_one(
                     {

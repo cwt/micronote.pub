@@ -8,7 +8,6 @@ from typing import Any
 import piexif
 import requests
 from neosqlite.gridfs import GridFSBucket
-from neosqlite.gridfs.errors import NoFile
 from neosqlite.gridfs.grid_file import GridOut
 from PIL import Image
 
@@ -59,15 +58,25 @@ class Kind(Enum):
     OG_IMAGE = "og"
 
 
-def _gzip_image(img) -> bytes:
-    """Encodes a `PIL.Image` as gzipped bytes."""
-    # NB: thumbnail copies lose `.format`, fall back to PNG then.
+MAX_REMOTE_ATTACHMENT_BYTES = 20 * 1024 * 1024
+
+
+def _gzip_image(img) -> tuple:
+    """Encodes a `PIL.Image` as (gzipped bytes, mimetype).
+
+    NB: thumbnail copies lose `.format`, fall back to PNG then — and the
+    mimetype follows the bytes actually written, not the source image.
+    """
+    from PIL import Image as PILImage
+
     image_format = img.format or "PNG"
     with BytesIO() as buf:
         with GzipFile(mode="wb", fileobj=buf) as gzipped:
             img.save(gzipped, format=image_format,
                      optimize=True, progressive=True, **info(img))
-        return buf.getvalue()
+        raw = buf.getvalue()
+    mimetype = PILImage.MIME.get(image_format, img.get_format_mimetype())
+    return raw, mimetype
 
 
 class MediaCache:
@@ -106,7 +115,7 @@ class MediaCache:
     def get_media(self, file_id: Any) -> GridOut | None:
         try:
             return self._bucket.open_download_stream(file_id)
-        except NoFile:
+        except Exception:
             return None
 
     def cache_og_image(self, url: str) -> None:
@@ -115,7 +124,8 @@ class MediaCache:
         i = load(url, self.user_agent)
         # Save the thumbnail (gzipped)
         i.thumbnail((100, 100))
-        self._store(_gzip_image(i), url, 100, i.get_format_mimetype(), Kind.OG_IMAGE)
+        raw, mimetype = _gzip_image(i)
+        self._store(raw, url, 100, mimetype, Kind.OG_IMAGE)
 
     def cache_attachment(self, url: str) -> None:
         if self.get_file(url, None, Kind.ATTACHMENT) or self.get_file(url, 720, Kind.ATTACHMENT):
@@ -128,21 +138,28 @@ class MediaCache:
         ):
             i = load(url, self.user_agent)
             # Save the original attachment (gzipped)
-            self._store(_gzip_image(i), url, None, i.get_format_mimetype(), Kind.ATTACHMENT)
+            raw, mimetype = _gzip_image(i)
+            self._store(raw, url, None, mimetype, Kind.ATTACHMENT)
             # Save a thumbnail (gzipped)
             i.thumbnail((720, 720))
-            self._store(_gzip_image(i), url, 720, i.get_format_mimetype(), Kind.ATTACHMENT)
+            raw, mimetype = _gzip_image(i)
+            self._store(raw, url, 720, mimetype, Kind.ATTACHMENT)
             return
 
         # The attachment is not an image, download and save it anyway
+        # (capped: remote hosts are untrusted, never buffer unbounded bytes).
         with requests.get(
             url, stream=True, headers={"User-Agent": self.user_agent}
         ) as resp:
             resp.raise_for_status()
             with BytesIO() as buf:
                 with GzipFile(mode="wb", fileobj=buf) as gzipped:
-                    for chunk in resp.iter_content():
+                    downloaded = 0
+                    for chunk in resp.iter_content(chunk_size=65536):
                         if chunk:
+                            downloaded += len(chunk)
+                            if downloaded > MAX_REMOTE_ATTACHMENT_BYTES:
+                                raise ValueError(f"attachment over size cap: {url}")
                             gzipped.write(chunk)
                 self._store(
                     buf.getvalue(),
@@ -156,11 +173,11 @@ class MediaCache:
         if self.get_file(url, 50, Kind.ACTOR_ICON):
             return
         i = load(url, self.user_agent)
-        mimetype = i.get_format_mimetype()
         for size in [50, 80]:
             t1 = i.copy()
             t1.thumbnail((size, size))
-            self._store(_gzip_image(t1), url, size, mimetype, Kind.ACTOR_ICON)
+            raw, mimetype = _gzip_image(t1)
+            self._store(raw, url, size, mimetype, Kind.ACTOR_ICON)
 
     def save_upload(self, obuf: BytesIO, filename: str, max_size: tuple) -> str:
         # Remove EXIF metadata

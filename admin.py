@@ -5,13 +5,14 @@ import bcrypt
 import flask
 from active_boxes import activitypub as ap
 from active_boxes.activitypub import ActivityType, get_backend
+from active_boxes.errors import ActivityGoneError, ActivityNotFoundError, BadActivityError, UnexpectedActivityTypeError
 from flask import abort, current_app, redirect, render_template, request, session, url_for
 from flask_wtf.csrf import CSRFProtect
 
 from activitypub import Box
 from config import BASE_URL, DB, DOMAIN, PASS, USERNAME
 from utils.headers import noindex
-from utils.login import login_required
+from utils.login import login_required, safe_next_url
 from utils.lookup import lookup
 from utils.query import paginated_query
 from utils.thread import _build_thread
@@ -22,6 +23,13 @@ csrf = CSRFProtect(current_app)
 
 def verify_pass(pwd):
     return bcrypt.checkpw(pwd.encode("utf-8"), PASS.encode("utf-8"))
+
+
+def requested_limit(default=25, maximum=100) -> int:
+    try:
+        return min(max(int(request.args.get("limit", default)), 1), maximum)
+    except (TypeError, ValueError):
+        return default
 
 
 @blueprint.route("/admin", methods=["GET"])
@@ -114,13 +122,18 @@ def admin_new():
         if data:
             reply = ap.parse_activity(data["activity"])
         else:
+            try:
+                remote_object = get_backend().fetch_iri_sync(request.args.get("reply"))
+            except (ActivityGoneError, ActivityNotFoundError):
+                abort(404)
             data = dict(
                 meta={},
-                activity=dict(
-                    object=get_backend().fetch_iri_sync(request.args.get("reply"))
-                ),
+                activity=dict(object=remote_object),
             )
-            reply = ap.parse_activity(data["activity"]["object"])
+            try:
+                reply = ap.parse_activity(data["activity"]["object"])
+            except (BadActivityError, UnexpectedActivityTypeError):
+                abort(404)
 
         reply_id = reply.id
         if reply.ACTIVITY_TYPE == ActivityType.CREATE:
@@ -196,7 +209,7 @@ def admin_stream():
             q = {}
 
     inbox_data, older_than, newer_than = paginated_query(
-        DB.activities, q, limit=int(request.args.get("limit", 25))
+        DB.activities, q, limit=requested_limit()
     )
 
     return render_template(
@@ -251,7 +264,7 @@ def admin_login():
             session.clear()
             session["logged_in"] = True
             return redirect(
-                request.args.get("redirect") or url_for(".admin_notifications")
+                safe_next_url(request.args.get("redirect"), url_for(".admin_notifications"))
             )
         else:
             abort(401)
