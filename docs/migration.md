@@ -82,6 +82,8 @@ Verify: federation tests against two local instances + manual Mastodon interop.
 
 Verify: inbox→outbox→delivery flow + retry-on-failure + worker-restart (no lost/double jobs beyond documented at-least-once).
 
+Note: `process_new_activity` CREATE triage was simplified post-migration — the old public-reply forward rule was always overwritten by the inbox-forwarding checklist, so only the checklist (followers addressed + local thread) ever took effect. Removed with flag-identical results on five offline cases (plain, local reply ± followers, OStatus, gone target).
+
 ## Phase 6 — Theme + PWA consolidation (Sass → plain CSS, rebrand)
 
 Background: this fork inherited `microblog.pub` theming plus a per-instance
