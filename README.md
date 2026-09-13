@@ -11,11 +11,14 @@ Forked from <a href="https://github.com/tsileo/microblog.pub">microblog.pub</a>,
    - Also implements a remote follow compatible with Mastodon instances
  - Exposes your outbox as a basic microblog
  - Implements [IndieAuth](https://indieauth.spec.indieweb.org/) endpoints (authorization and token endpoint)
+   - WebAuthn security-key second factor for the admin login
    - You can use your ActivityPub identity to login to other websites/app
  - Comes with an admin UI with notifications and the stream of people you follow
  - Allows you to attach files to your notes
    - Privacy-aware image upload endpoint that strip EXIF meta data before storing the file
- - No JavaScript, **that's it**. Even the admin UI is pure HTML/CSS
+ - No JavaScript needed to read or post — pages work with scripting disabled
+   (only the security-key ceremonies use a small inline script).
+   Even the admin UI is plain HTML/CSS otherwise
  - Easy to customize (plain CSS with light/dark custom properties)
    - mobile-friendly theme
    - with dark and light version
@@ -31,8 +34,8 @@ Forked from <a href="https://github.com/tsileo/microblog.pub">microblog.pub</a>,
  - Single SQLite file storage (no database server), background jobs via a built-in worker (no broker)
  - Focused on testing
    - The core ActivityPub code/tests are in [active-boxes](https://github.com/cwt/active-boxes)
-   - Local ActivityPub matrix harness (see `docs/migration.md`) covers all supported actions without the fediverse
-   - CI runs "federation" tests against two instances
+   - Local ActivityPub matrix harness spec (see `docs/migration.md`) for covering all supported actions without the fediverse
+   - CI runs lint, integration tests and a Docker build; "federation" tests run manually against two instances (`make reload-fed`)
 
 ## ActivityPub
 
@@ -43,6 +46,8 @@ Activities are verified using HTTP Signatures or by fetching the content on the 
 ## Running your instance
 
 ### Installation
+
+Requires Python 3.11.
 
 ```shell
 $ pip install -r requirements.txt
@@ -91,6 +96,12 @@ $ docker-compose -f docker-compose-dev.yml up -d
 $ FLASK_DEBUG=1 MICRONOTE_DEBUG=1 FLASK_APP=app.py flask run -p 5005 --with-threads
 # ...or skip the worker and run jobs inline instead:
 $ MICRONOTE_TASK_EAGER=1 FLASK_DEBUG=1 MICRONOTE_DEBUG=1 FLASK_APP=app.py flask run -p 5005 --with-threads
+```
+
+Local runs need indexes once (Docker does this via `run.sh`):
+
+```shell
+$ python -c "import config; config.create_indexes()"
 ```
 
 ## API
@@ -277,7 +288,7 @@ Creates a new note. `reply` is the IRI of the "replied" note if any.
 
 Answers a **201** (Created) status code.
 
-You can pass the `content` and `reply` via JSON, form data or query argument.
+You can pass the `content` and `reply` via JSON, form data or query argument. To attach an image, POST `multipart/form-data` with a `file` field (EXIF data is stripped, thumbnails are generated).
 
 #### Example
 
@@ -290,6 +301,26 @@ $ http POST https://your-domain.tld/api/new_note Authorization:'Bearer <token>' 
 ```json
 {
     "activity": "https://your-domain.tld/outbox/<create_id>"
+}
+```
+
+### POST /api/undo{?id}
+
+Undoes a previous outbox activity (like, boost, follow...). `id` is the IRI of the activity to undo, or its short outbox id.
+
+Answers a **201** (Created) status code.
+
+#### Example
+
+```shell
+$ http POST https://your-domain.tld/api/undo Authorization:'Bearer <token>' id=https://your-domain.tld/outbox/<like_id>
+```
+
+#### Response
+
+```json
+{
+    "activity": "https://your-domain.tld/outbox/<undo_id>"
 }
 ```
 
