@@ -1,4 +1,3 @@
-import asyncio
 import json
 import logging
 import os
@@ -6,7 +5,6 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
-import requests
 from active_boxes import activitypub as ap
 from active_boxes import strtobool
 from active_boxes.activitypub import _to_list
@@ -14,7 +12,6 @@ from active_boxes.backend import Backend
 from active_boxes.errors import (
     ActivityGoneError,
     ActivityNotFoundError,
-    ActivityUnavailableError,
     Error,
     NotAnActivityError,
 )
@@ -235,8 +232,6 @@ class MicroblogPubBackend(Backend):
         if data is None:
             # Fetch the URL via HTTP
             logger.info(f"dereference {iri} via HTTP")
-            if self.debug_mode():
-                return await self._debug_fetch_iri(iri, **kwargs)
             return await super().fetch_iri(iri, **kwargs)
 
         logger.debug(f"_fetch_iri({iri!r}) == {data!r}")
@@ -251,47 +246,6 @@ class MicroblogPubBackend(Backend):
             ACTORS_CACHE[iri] = data
 
         return data
-
-    async def _debug_fetch_iri(self, iri: str, **kwargs) -> ap.ObjectType:
-        """Direct HTTP fetch for local testing (debug builds only).
-
-        active-boxes 0.2.2 drops the backend debug flag inside its shared
-        HTTP client, so loopback URLs are rejected even in debug mode.
-        This mirrors the base error mapping with requests until upstream
-        threads the flag through; production (debug off) never calls it.
-        """
-        timeout = kwargs.get("timeout", 15)
-
-        def get():
-            resp = requests.get(
-                iri,
-                headers={
-                    "User-Agent": self.user_agent(),
-                    "Accept": "application/activity+json, application/json",
-                },
-                timeout=timeout,
-            )
-            if resp.status_code == 404:
-                raise ActivityNotFoundError(f"{iri} is not found")
-            if resp.status_code == 410:
-                raise ActivityGoneError(f"{iri} is gone")
-            try:
-                resp.raise_for_status()
-            except requests.RequestException as err:
-                raise ActivityUnavailableError(f"unable to fetch {iri}: {err}") from err
-            try:
-                return resp.json()
-            except ValueError as err:
-                raise NotAnActivityError(f"{iri} is not JSON: {err}") from err
-
-        try:
-            return await asyncio.to_thread(get)
-        except (ActivityNotFoundError, ActivityGoneError, NotAnActivityError):
-            raise
-        except ActivityUnavailableError:
-            raise
-        except Exception as err:
-            raise ActivityUnavailableError(f"unable to fetch {iri}: {err}") from err
 
     @ensure_it_is_me
     def inbox_check_duplicate(self, as_actor: ap.Person, iri: str) -> bool:
