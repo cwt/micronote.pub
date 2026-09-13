@@ -1,0 +1,49 @@
+{% extends "layout.html" %}
+{% import 'utils.html' as utils %}
+{% block title %}Register security key - {{ config.NAME }}{% endblock %}
+{% block content %}
+<div style="width:90%;max-width: 720px;margin:40px auto;">
+	<h3>Register a new security key</h3>
+	<form method="POST" id="register-form">
+		<input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+		<input type="hidden" id="register-payload" name="credential" value="">
+		<input type="submit" value="register this key" disabled>
+	</form>
+</div>
+<script>
+function b64ToBytes(data) {
+	data = data.replace(/-/g, "+").replace(/_/g, "/");
+	while (data.length % 4) { data += "="; }
+	var raw = window.atob(data);
+	var out = new Uint8Array(raw.length);
+	for (var i = 0; i < raw.length; i++) { out[i] = raw.charCodeAt(i); }
+	return out;
+}
+function bytesToB64(bytes) {
+	var raw = "";
+	bytes.forEach(function (b) { raw += String.fromCharCode(b); });
+	return window.btoa(raw).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+var options = {{ options | tojson }};
+options.publicKey.challenge = b64ToBytes(options.publicKey.challenge);
+options.publicKey.user.id = b64ToBytes(options.publicKey.user.id);
+(options.publicKey.excludeCredentials || []).forEach(function (cred) {
+	cred.id = b64ToBytes(cred.id);
+});
+navigator.credentials.create({publicKey: options.publicKey}).then(function (credential) {
+	document.getElementById('register-payload').value = JSON.stringify({
+		id: credential.id,
+		rawId: bytesToB64(new Uint8Array(credential.rawId)),
+		type: credential.type,
+		response: {
+			attestationObject: bytesToB64(new Uint8Array(credential.response.attestationObject)),
+			clientDataJSON: bytesToB64(new Uint8Array(credential.response.clientDataJSON))
+		}
+	});
+	document.querySelector('#register-form input[type=submit]').disabled = false;
+	document.getElementById('register-form').submit();
+}).catch(function (err) {
+	console.log(err);
+});
+</script>
+{% endblock %}

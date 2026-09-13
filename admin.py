@@ -14,13 +14,11 @@ from active_boxes import activitypub as ap
 from active_boxes.activitypub import ActivityType
 from active_boxes.activitypub import get_backend
 import bcrypt
-from u2flib_server import u2f
 
 from activitypub import Box
 from config import BASE_URL
 from config import DB
 from config import DOMAIN
-from config import ID
 from config import PASS
 from config import USERNAME
 from utils.headers import noindex
@@ -227,27 +225,39 @@ def admin_logout():
 @blueprint.route("/login", methods=["POST", "GET"])
 @noindex
 def admin_login():
+    from utils.webauthn import clear_state
+    from utils.webauthn import credential_options
+    from utils.webauthn import get_server
+    from utils.webauthn import load_state
+    from utils.webauthn import save_state
+    from utils.webauthn import stored_credentials
+    from utils.webauthn import update_sign_count
+
     if session.get("logged_in") is True:
         return redirect(url_for(".admin_notifications"))
 
-    devices = [doc["device"] for doc in DB.u2f.find()]
-    u2f_enabled = True if devices else False
+    credentials = stored_credentials()
+    webauthn_enabled = True if credentials else False
     if request.method == "POST":
         csrf.protect()
         pwd = request.form.get("pass")
         if pwd and verify_pass(pwd):
-            if devices:
-                resp = json.loads(request.form.get("resp"))
-                current_app.logger.debug(resp)
+            if credentials:
+                assertion = json.loads(request.form.get("assertion"))
                 try:
-                    u2f.complete_authentication(session["challenge"], resp)
+                    credential = get_server().authenticate_complete(
+                        load_state("login"), credentials, assertion
+                    )
                 except ValueError as exc:
-                    current_app.logger.debug("failed", exc)
+                    current_app.logger.debug(f"webauthn failed: {exc}")
                     abort(401)
                     return
                 finally:
-                    session["challenge"] = None
+                    clear_state("login")
+                if credential.sign_count != 0:
+                    update_sign_count(credential.credential_id, credential.sign_count)
 
+            session.clear()
             session["logged_in"] = True
             return redirect(
                 request.args.get("redirect") or url_for(".admin_notifications")
@@ -255,9 +265,10 @@ def admin_login():
         else:
             abort(401)
 
-    payload = None
-    if devices:
-        payload = u2f.begin_authentication(ID, devices)
-        session["challenge"] = payload
+    options = None
+    if credentials:
+        options, state = get_server().authenticate_begin(credentials)
+        save_state("login", state)
+        options = credential_options(options)
 
-    return render_template("login.html", u2f_enabled=u2f_enabled, payload=payload)
+    return render_template("login.html", webauthn_enabled=webauthn_enabled, options=options)

@@ -4,7 +4,7 @@ flower
 gunicorn
 piexif
 requests
-python-u2flib-server
+fido2
 Flask
 Flask-WTF
 neosqlite==1.16.1

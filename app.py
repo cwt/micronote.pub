@@ -30,7 +30,6 @@ from active_boxes.errors import Error
 from active_boxes.httpsig import verify_request_sync
 from active_boxes.webfinger import get_actor_url_sync
 from active_boxes.webfinger import get_remote_follow_template_sync
-from u2flib_server import u2f
 
 from activitypub import Box
 from activitypub import embed_collection
@@ -297,20 +296,32 @@ def authorize_follow():
     return redirect("/following")
 
 
-@app.route("/u2f/register", methods=["GET", "POST"])
+@app.route("/webauthn/register", methods=["GET", "POST"])
 @login_required
-def u2f_register():
-    # TODO(tsileo): ensure no duplicates
+def webauthn_register():
+    from fido2.webauthn import PublicKeyCredentialUserEntity
+
+    from utils.webauthn import clear_state
+    from utils.webauthn import credential_options
+    from utils.webauthn import get_server
+    from utils.webauthn import load_state
+    from utils.webauthn import save_credential
+    from utils.webauthn import save_state
+    from utils.webauthn import stored_credentials
+
+    server = get_server()
     if request.method == "GET":
-        payload = u2f.begin_registration(ID)
-        session["challenge"] = payload
-        return render_template("u2f.html", payload=payload)
+        user = PublicKeyCredentialUserEntity(id=b"admin", name=USERNAME)
+        options, state = server.register_begin(user, credentials=stored_credentials())
+        save_state("register", state)
+        return render_template("webauthn_register.html", options=credential_options(options))
     else:
-        resp = json.loads(request.form.get("resp"))
-        device, device_cert = u2f.complete_registration(session["challenge"], resp)
-        session["challenge"] = None
-        DB.u2f.insert_one({"device": device, "cert": device_cert})
-        return ""
+        csrf.protect()
+        credential = json.loads(request.form.get("credential"))
+        auth_data = server.register_complete(load_state("register"), credential)
+        clear_state("register")
+        save_credential(auth_data)
+        return redirect("/admin")
 
 
 #######

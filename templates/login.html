@@ -23,26 +23,49 @@
 	<form id="login-form" method="POST">
 		<input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
 		<input type="password" name="pass" placeholder="password">
-	{% if u2f_enabled %}
-		<input type="hidden" name="resp" id="sig-payload" value=""> <input type="submit" value="waiting for u2f" disabled>
+	{% if webauthn_enabled %}
+		<input type="hidden" name="assertion" id="assertion-payload" value=""> <input type="submit" value="waiting for security key" disabled>
 	{% else %}
 		<input type="submit" value="login">
 	{% endif %}
 	</form>
 </div>
-{% if u2f_enabled %}
+{% if webauthn_enabled %}
 <script>
-var p = {{ payload | tojson }};
-if (p) {
-	u2f.sign(p.appId, p.challenge, p.registeredKeys, function(resp) {
-		if (resp.errorCode) {
-			console.log(resp)
-		} else {
-			document.getElementById('sig-payload').value = JSON.stringify(resp)
-			document.getElementById('login-form').submit()
-		}
-	})
+function b64ToBytes(data) {
+	data = data.replace(/-/g, "+").replace(/_/g, "/");
+	while (data.length % 4) { data += "="; }
+	var raw = window.atob(data);
+	var out = new Uint8Array(raw.length);
+	for (var i = 0; i < raw.length; i++) { out[i] = raw.charCodeAt(i); }
+	return out;
 }
+function bytesToB64(bytes) {
+	var raw = "";
+	bytes.forEach(function (b) { raw += String.fromCharCode(b); });
+	return window.btoa(raw).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+var options = {{ options | tojson }};
+options.publicKey.challenge = b64ToBytes(options.publicKey.challenge);
+options.publicKey.allowCredentials.forEach(function (cred) {
+	cred.id = b64ToBytes(cred.id);
+});
+navigator.credentials.get({publicKey: options.publicKey}).then(function (credential) {
+	document.getElementById('assertion-payload').value = JSON.stringify({
+		id: credential.id,
+		rawId: bytesToB64(new Uint8Array(credential.rawId)),
+		type: credential.type,
+		response: {
+			authenticatorData: bytesToB64(new Uint8Array(credential.response.authenticatorData)),
+			clientDataJSON: bytesToB64(new Uint8Array(credential.response.clientDataJSON)),
+			signature: bytesToB64(new Uint8Array(credential.response.signature)),
+			userHandle: credential.response.userHandle ? bytesToB64(new Uint8Array(credential.response.userHandle)) : null
+		}
+	});
+	document.getElementById('login-form').submit();
+}).catch(function (err) {
+	console.log(err);
+});
 </script>
 {% endif %}
 {% endblock %}
