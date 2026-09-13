@@ -3,9 +3,9 @@
 	<a class="actor-box" href="{{follower | url_or_id | get_url }}" style="clear: both;">
 		<span style="float: left; padding-right: 15px;">
 		{% if not follower.icon %}
-			<img class="actor-icon" src="{{ config.CDN_URL }}/static/nopic.png" style="width: {{ size }}px;">
+			<img class="actor-icon" src="{{ config.CDN_URL }}/static/nopic.png" alt="" style="width: {{ size }}px;">
 		{% else %}
-			<img class="actor-icon" src="{{ follower.icon.url | get_actor_icon_url(size) }}" style="width: {{ size }}px;">
+			<img class="actor-icon" src="{{ follower.icon.url | get_actor_icon_url(size) }}" alt="{{ follower.name or follower.preferredUsername }}" style="width: {{ size }}px;">
 		{% endif %}
 		</span>
 		<div class="actor-inline">
@@ -23,7 +23,7 @@
 	<div class="note h-entry notepad">
 		<div class="h-card p-author">
 			<a class="u-url u-uid no-hover" href="{{ actor | url_or_id | get_url }}">
-				<img class="u-photo" src="{% if not actor.icon %}{{ config.CDN_URL }}/static/nopic.png{% else %}{{ actor.icon.url | get_actor_icon_url(50) }}{% endif %}">
+				<img class="u-photo" src="{% if not actor.icon %}{{ config.CDN_URL }}/static/nopic.png{% else %}{{ actor.icon.url | get_actor_icon_url(50) }}{% endif %}" alt="{{ actor.name or actor.preferredUsername }}">
 			</a>
 			<data class="p-name" value="{{ actor.name or actor.preferredUsername }}"></data>
 		</div>
@@ -65,7 +65,7 @@
 				{% for a in obj.attachment %}
 					{% if (a.mediaType and a.mediaType.startswith("image/")) or (a.type and a.type == 'Image') %}
 						<a href="{{ a.url | get_attachment_url(None) }}">
-							<img src="{{a.url | get_attachment_url(720) }}" class="img-attachment">
+							<img src="{{a.url | get_attachment_url(720) }}" class="img-attachment" alt="{{ a.name or '' }}">
 						</a>
 					{% elif (a.mediaType and a.mediaType.startswith("video/")) %}
 						<li>
@@ -87,7 +87,7 @@
 					{% if og.url %}
 						<a href="{{ og.url }}" class="og-link" style="margin: 30px 0; clear: both; display: flex;">
 							<div style="padding: 0 20px;">
-								<img style="width: 100px; border-radius: 3px; float: left; margin-top: 16px; margin-right: 10px;" src="{{ og.image | get_og_image_url }}">
+								<img style="width: 100px; border-radius: 3px; float: left; margin-top: 16px; margin-right: 10px;" src="{{ og.image | get_og_image_url }}" alt="">
 								<p>
 									<strong>{{ og.title }}</strong>
 									<p>{{ og.description | truncate(80) }}</p>

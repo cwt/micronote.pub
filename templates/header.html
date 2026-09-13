@@ -29,11 +29,6 @@
 				<a href="/following" {% if request.path=="/following" %} class="selected"{% endif %}>Following<small class="badge">{{ following_count }}</small></a>
 			</li>
 		{% endif %}
-		<!--
-	  		<li>
-				<a href="/about" {% if request.path=="/about" %} class="selected" {% endif %}>/about</a>
-			</li>
-		-->
 		{% if not session.logged_in %}
 			<li>
 				<a href="/login">🔑</a>

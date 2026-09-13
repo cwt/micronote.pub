@@ -1,61 +1,47 @@
-from datetime import datetime
-from datetime import timezone
 import json
 import logging
 import mimetypes
 import os
 import traceback
+from datetime import UTC, datetime
 from typing import Any
-from typing import Dict
 
-from flask import Flask
-from flask import Response
-from flask import abort
+from active_boxes import activitypub as ap
+from active_boxes.activitypub import ActivityType, _to_list, clean_activity, get_backend
+from active_boxes.errors import ActivityGoneError, Error
+from active_boxes.httpsig import verify_request_sync
+from active_boxes.webfinger import get_actor_url_sync, get_remote_follow_template_sync
+from flask import Flask, Response, abort, redirect, render_template, request, send_from_directory, session, url_for
 from flask import jsonify as flask_jsonify
-from flask import redirect
-from flask import render_template
-from flask import request
-from flask import send_from_directory
-from flask import session
-from flask import url_for
 from flask_wtf.csrf import CSRFProtect
 from itsdangerous import BadSignature
-from active_boxes import activitypub as ap
-from active_boxes.activitypub import ActivityType
-from active_boxes.activitypub import _to_list
-from active_boxes.activitypub import clean_activity
-from active_boxes.activitypub import get_backend
-from active_boxes.errors import ActivityGoneError
-from active_boxes.errors import Error
-from active_boxes.httpsig import verify_request_sync
-from active_boxes.webfinger import get_actor_url_sync
-from active_boxes.webfinger import get_remote_follow_template_sync
 
-from activitypub import Box
-from activitypub import embed_collection
 import activitypub
 import admin
 import api
-from config import BASE_URL
-from config import CDN_URL
-from config import DB
-from config import DOMAIN
-from config import HEADERS
-from config import ICON_URL
-from config import ID
-from config import KEY
-from config import ME
-from config import MEDIA_CACHE
-from config import NAME
-from config import SUMMARY
-from config import THEME_COLOR
-from config import USERNAME
-from config import VERSION
 import config
 import feeds
 import filters
 import indieauth
 import tasks
+from activitypub import Box, embed_collection
+from config import (
+    BASE_URL,
+    CDN_URL,
+    DB,
+    DOMAIN,
+    HEADERS,
+    ICON_URL,
+    ID,
+    KEY,
+    ME,
+    MEDIA_CACHE,
+    NAME,
+    SUMMARY,
+    THEME_COLOR,
+    USERNAME,
+    VERSION,
+)
 from utils.headers import noindex
 from utils.key import get_secret_key
 from utils.login import login_required
@@ -91,8 +77,6 @@ else:
     gunicorn_logger = logging.getLogger("gunicorn.error")
     root_logger.handlers = gunicorn_logger.handlers
     root_logger.setLevel(gunicorn_logger.level)
-    if root_logger.level > logging.DEBUG:
-        app.jinja_env.add_extension('jinja2htmlcompress.HTMLCompress')
 
 
 @app.context_processor
@@ -301,13 +285,15 @@ def authorize_follow():
 def webauthn_register():
     from fido2.webauthn import PublicKeyCredentialUserEntity
 
-    from utils.webauthn import clear_state
-    from utils.webauthn import credential_options
-    from utils.webauthn import get_server
-    from utils.webauthn import load_state
-    from utils.webauthn import save_credential
-    from utils.webauthn import save_state
-    from utils.webauthn import stored_credentials
+    from utils.webauthn import (
+        clear_state,
+        credential_options,
+        get_server,
+        load_state,
+        save_credential,
+        save_state,
+        stored_credentials,
+    )
 
     server = get_server()
     if request.method == "GET":
@@ -355,7 +341,7 @@ def _cache(resp, type_="html", arg=None):
     if not logged_in:
         DB.cache2.update_one(
             {"path": request.path, "type": type_, "arg": arg},
-            {"$set": {"response_data": resp, "date": datetime.now(timezone.utc)}},
+            {"$set": {"response_data": resp, "date": datetime.now(UTC)}},
             upsert=True,
         )
     return None
@@ -622,7 +608,7 @@ def wellknown_webfinger():
     )
 
 
-def add_extra_collection(raw_doc: Dict[str, Any]) -> Dict[str, Any]:
+def add_extra_collection(raw_doc: dict[str, Any]) -> dict[str, Any]:
     if raw_doc["activity"]["type"] != ActivityType.CREATE.value:
         return raw_doc
 
@@ -642,13 +628,13 @@ def add_extra_collection(raw_doc: Dict[str, Any]) -> Dict[str, Any]:
     return raw_doc
 
 
-def remove_context(activity: Dict[str, Any]) -> Dict[str, Any]:
+def remove_context(activity: dict[str, Any]) -> dict[str, Any]:
     if "@context" in activity:
         del activity["@context"]
     return activity
 
 
-def activity_from_doc(raw_doc: Dict[str, Any], embed: bool=False) -> Dict[str, Any]:
+def activity_from_doc(raw_doc: dict[str, Any], embed: bool=False) -> dict[str, Any]:
     raw_doc = add_extra_collection(raw_doc)
     activity = clean_activity(raw_doc["activity"])
     if embed:
@@ -656,23 +642,23 @@ def activity_from_doc(raw_doc: Dict[str, Any], embed: bool=False) -> Dict[str, A
     return activity
 
 
-def activity_from_doc_embedded(raw_doc: Dict[str, Any]) -> Dict[str, Any]:
+def activity_from_doc_embedded(raw_doc: dict[str, Any]) -> dict[str, Any]:
     return activity_from_doc(raw_doc, embed=True)
 
 
-def activity_object_from_doc(raw_doc: Dict[str, Any]) -> Dict[str, Any]:
+def activity_object_from_doc(raw_doc: dict[str, Any]) -> dict[str, Any]:
     return raw_doc["activity"]["object"]
 
 
-def activity_object_id_from_doc(raw_doc: Dict[str, Any]) -> str:
+def activity_object_id_from_doc(raw_doc: dict[str, Any]) -> str:
     return raw_doc["activity"]["object"]["id"]
 
 
-def activity_actor_from_doc(raw_doc: Dict[str, Any]) -> str:
+def activity_actor_from_doc(raw_doc: dict[str, Any]) -> str:
     return raw_doc["activity"]["actor"]
 
 
-def activity_without_context(raw_doc: Dict[str, Any]) -> Dict[str, Any]:
+def activity_without_context(raw_doc: dict[str, Any]) -> dict[str, Any]:
     return remove_context(raw_doc["activity"])
 
 

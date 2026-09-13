@@ -6,4 +6,5 @@ static/media/*
 static/pwa
 static/favicon.ico
 .mypy_cache/
+.ruff_cache/
 __pycache__/
