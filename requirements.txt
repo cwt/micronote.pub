@@ -9,7 +9,7 @@ python-u2flib-server
 Flask
 Flask-WTF
 Celery
-pymongo
+neosqlite==1.16.0
 timeago
 bleach
 html2text
@@ -19,7 +19,7 @@ bcrypt
 mf2py
 passlib
 git+https://github.com/erikriver/opengraph.git
-hg+https://hg.sr.ht/~cwt/little-boxes
+git+https://github.com/tsileo/little-boxes.git
 pyyaml
 pillow
 cachetools

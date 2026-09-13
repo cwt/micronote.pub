@@ -4,19 +4,22 @@ from gzip import GzipFile
 from io import BytesIO
 import mimetypes
 from typing import Any
+from typing import Optional
 
+from neosqlite.gridfs import GridFSBucket
+from neosqlite.gridfs.errors import NoFile
+from neosqlite.gridfs.grid_file import GridOut
 from PIL import Image
-import gridfs
 import piexif
 import requests
-
 
 def load(url, user_agent):
     """Initializes a `PIL.Image` from the URL."""
     with requests.get(url, stream=True,
                       headers={"User-Agent": user_agent}) as resp:
         resp.raise_for_status()
-        if not resp.headers.get('content-type').startswith('image/'):
+        content_type = resp.headers.get('content-type') or ''
+        if not content_type.startswith('image/'):
             raise ValueError(
                 f"bad content-type {resp.headers.get('content-type')}"
             )
@@ -56,32 +59,66 @@ class Kind(Enum):
     OG_IMAGE = "og"
 
 
+def _gzip_image(img) -> bytes:
+    """Encodes a `PIL.Image` as gzipped bytes."""
+    # NB: thumbnail copies lose `.format`, fall back to PNG then.
+    image_format = img.format or "PNG"
+    with BytesIO() as buf:
+        with GzipFile(mode="wb", fileobj=buf) as gzipped:
+            img.save(gzipped, format=image_format,
+                     optimize=True, progressive=True, **info(img))
+        return buf.getvalue()
+
+
 class MediaCache(object):
-    def __init__(self, gridfs_db: str, user_agent: str) -> None:
-        self.fs = gridfs.GridFS(gridfs_db)
+    def __init__(self, connection_factory, user_agent: str) -> None:
+        self._connection_factory = connection_factory
         self.user_agent = user_agent
 
+    @property
+    def _bucket(self) -> GridFSBucket:
+        # Resolved per call: buckets hold their thread's SQLite handle.
+        return GridFSBucket(self._connection_factory().db)
+
+    def _store(self, data: bytes, url: str, size: Optional[int], content_type: Optional[str], kind: Kind):
+        """Stores gzipped bytes, with lookup metadata attached."""
+        return self._bucket.upload_from_stream(
+            filename=url,
+            source=BytesIO(data),
+            metadata={
+                "url": url,
+                "size": size,
+                "content_type": content_type,
+                "kind": kind.value,
+            },
+        )
+
+    def get_file(self, url: str, size: Optional[int], kind: Kind) -> Optional[GridOut]:
+        found = self._bucket.find({
+            "metadata.url": url,
+            "metadata.size": size,
+            "metadata.kind": kind.value,
+        })
+        for grid_out in found:
+            return grid_out
+        return None
+
+    def get_media(self, file_id: Any) -> Optional[GridOut]:
+        try:
+            return self._bucket.open_download_stream(file_id)
+        except NoFile:
+            return None
+
     def cache_og_image(self, url: str) -> None:
-        if self.fs.find_one({"url": url, "kind": Kind.OG_IMAGE.value}):
+        if self.get_file(url, 100, Kind.OG_IMAGE):
             return
         i = load(url, self.user_agent)
-        # Save the original attachment (gzipped)
+        # Save the thumbnail (gzipped)
         i.thumbnail((100, 100))
-        with BytesIO() as buf:
-            with GzipFile(mode="wb", fileobj=buf) as f1:
-                i.save(f1, format=i.format,
-                       optimize=True, progressive=True, **info(i))
-            buf.seek(0)
-            self.fs.put(
-                buf,
-                url=url,
-                size=100,
-                content_type=i.get_format_mimetype(),
-                kind=Kind.OG_IMAGE.value,
-            )
+        self._store(_gzip_image(i), url, 100, i.get_format_mimetype(), Kind.OG_IMAGE)
 
     def cache_attachment(self, url: str) -> None:
-        if self.fs.find_one({"url": url, "kind": Kind.ATTACHMENT.value}):
+        if self.get_file(url, None, Kind.ATTACHMENT) or self.get_file(url, 720, Kind.ATTACHMENT):
             return
         if (
             url.endswith(".png")
@@ -91,33 +128,10 @@ class MediaCache(object):
         ):
             i = load(url, self.user_agent)
             # Save the original attachment (gzipped)
-            with BytesIO() as buf:
-                f1 = GzipFile(mode="wb", fileobj=buf)
-                i.save(f1, format=i.format,
-                       optimize=True, progressive=True, **info(i))
-                f1.close()
-                buf.seek(0)
-                self.fs.put(
-                    buf,
-                    url=url,
-                    size=None,
-                    content_type=i.get_format_mimetype(),
-                    kind=Kind.ATTACHMENT.value,
-                )
+            self._store(_gzip_image(i), url, None, i.get_format_mimetype(), Kind.ATTACHMENT)
             # Save a thumbnail (gzipped)
             i.thumbnail((720, 720))
-            with BytesIO() as buf:
-                with GzipFile(mode="wb", fileobj=buf) as f1:
-                    i.save(f1, format=i.format,
-                           optimize=True, progressive=True, **info(i))
-                buf.seek(0)
-                self.fs.put(
-                    buf,
-                    url=url,
-                    size=720,
-                    content_type=i.get_format_mimetype(),
-                    kind=Kind.ATTACHMENT.value,
-                )
+            self._store(_gzip_image(i), url, 720, i.get_format_mimetype(), Kind.ATTACHMENT)
             return
 
         # The attachment is not an image, download and save it anyway
@@ -126,38 +140,27 @@ class MediaCache(object):
         ) as resp:
             resp.raise_for_status()
             with BytesIO() as buf:
-                with GzipFile(mode="wb", fileobj=buf) as f1:
+                with GzipFile(mode="wb", fileobj=buf) as gzipped:
                     for chunk in resp.iter_content():
                         if chunk:
-                            f1.write(chunk)
-                buf.seek(0)
-                self.fs.put(
-                    buf,
-                    url=url,
-                    size=None,
-                    content_type=mimetypes.guess_type(url)[0],
-                    kind=Kind.ATTACHMENT.value,
+                            gzipped.write(chunk)
+                self._store(
+                    buf.getvalue(),
+                    url,
+                    None,
+                    mimetypes.guess_type(url)[0],
+                    Kind.ATTACHMENT,
                 )
 
     def cache_actor_icon(self, url: str) -> None:
-        if self.fs.find_one({"url": url, "kind": Kind.ACTOR_ICON.value}):
+        if self.get_file(url, 50, Kind.ACTOR_ICON):
             return
         i = load(url, self.user_agent)
+        mimetype = i.get_format_mimetype()
         for size in [50, 80]:
             t1 = i.copy()
             t1.thumbnail((size, size))
-            with BytesIO() as buf:
-                with GzipFile(mode="wb", fileobj=buf) as f1:
-                    t1.save(f1, format=i.format,
-                            optimize=True, progressive=True, **info(i))
-                buf.seek(0)
-                self.fs.put(
-                    buf,
-                    url=url,
-                    size=size,
-                    content_type=i.get_format_mimetype(),
-                    kind=Kind.ACTOR_ICON.value,
-                )
+            self._store(_gzip_image(t1), url, size, mimetype, Kind.ACTOR_ICON)
 
     def save_upload(self, obuf: BytesIO, filename: str, max_size: tuple) -> str:
         # Remove EXIF metadata
@@ -182,12 +185,12 @@ class MediaCache(object):
             with GzipFile(mode="wb", fileobj=gbuf) as gzipfile:
                 gzipfile.write(thumbnail_buf.getvalue() or obuf.getvalue())
 
-            gbuf.seek(0)
-            oid = self.fs.put(
-                gbuf,
-                content_type=mtype,
-                upload_filename=filename,
-                kind=Kind.UPLOAD.value,
+            oid = self._store(
+                gbuf.getvalue(),
+                filename,
+                None,
+                mtype,
+                Kind.UPLOAD,
             )
             return str(oid)
 
@@ -204,6 +207,3 @@ class MediaCache(object):
 
     def get_attachment(self, url: str, size: int) -> Any:
         return self.get_file(url, size, Kind.ATTACHMENT)
-
-    def get_file(self, url: str, size: int, kind: Kind) -> Any:
-        return self.fs.find_one({"url": url, "size": size, "kind": kind.value})

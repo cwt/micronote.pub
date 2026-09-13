@@ -1,5 +1,3 @@
-import json
-
 from flask import Response
 import flask
 
@@ -11,7 +9,7 @@ blueprint = flask.Blueprint('feeds', __name__, template_folder='templates')
 @blueprint.route("/feed.json")
 def json_feed():
     return Response(
-        response=json.dumps(
+        response=activitypub.json_dumps(
             activitypub.json_feed("/feed.json")
         ),
         headers={"Content-Type": "application/json"},

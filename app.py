@@ -8,7 +8,6 @@ import traceback
 from typing import Any
 from typing import Dict
 
-from bson.objectid import ObjectId
 from flask import Flask
 from flask import Response
 from flask import abort
@@ -155,7 +154,7 @@ def jsonify(**data):
     if "@context" not in data:
         data["@context"] = config.DEFAULT_CTX
     return Response(
-        response=json.dumps(data),
+        response=activitypub.json_dumps(data),
         headers={
             "Content-Type": "application/json"
             if app.debug
@@ -222,33 +221,40 @@ def robots_txt():
     return Response(response=ROBOTS_TXT, headers={"Content-Type": "text/plain"})
 
 
-@app.route("/media/<media_id>")
-@noindex
-def serve_media(media_id):
-    f = MEDIA_CACHE.fs.get(ObjectId(media_id))
-    resp = app.response_class(f, direct_passthrough=True, mimetype=f.content_type)
-    resp.headers.set("Content-Length", f.length)
-    resp.headers.set("ETag", f.md5)
-    resp.headers.set(
-        "Last-Modified", f.uploadDate.strftime("%a, %d %b %Y %H:%M:%S GMT")
+def serve_grid_file(grid_out):
+    data = grid_out.read()
+    upload_date = grid_out.upload_date
+    try:
+        parsed_date = datetime.fromisoformat(upload_date)
+        last_modified = parsed_date.strftime("%a, %d %b %Y %H:%M:%S GMT")
+    except (TypeError, ValueError):
+        last_modified = upload_date
+    resp = app.response_class(
+        data, mimetype=(grid_out.metadata or {}).get("content_type")
     )
+    resp.headers.set("Content-Length", len(data))
+    resp.headers.set("ETag", grid_out.md5)
+    resp.headers.set("Last-Modified", last_modified)
     resp.headers.set("Cache-Control", "public,max-age=31536000,immutable")
     resp.headers.set("Content-Encoding", "gzip")
     return resp
+
+
+@app.route("/media/<media_id>")
+@noindex
+def serve_media(media_id):
+    grid_out = MEDIA_CACHE.get_media(media_id)
+    if grid_out is None:
+        abort(404)
+    return serve_grid_file(grid_out)
 
 
 @app.route("/uploads/<oid>/<fname>")
 def serve_uploads(oid, fname):
-    f = MEDIA_CACHE.fs.get(ObjectId(oid))
-    resp = app.response_class(f, direct_passthrough=True, mimetype=f.content_type)
-    resp.headers.set("Content-Length", f.length)
-    resp.headers.set("ETag", f.md5)
-    resp.headers.set(
-        "Last-Modified", f.uploadDate.strftime("%a, %d %b %Y %H:%M:%S GMT")
-    )
-    resp.headers.set("Cache-Control", "public,max-age=31536000,immutable")
-    resp.headers.set("Content-Encoding", "gzip")
-    return resp
+    grid_out = MEDIA_CACHE.get_media(oid)
+    if grid_out is None:
+        abort(404)
+    return serve_grid_file(grid_out)
 
 
 @app.route("/remote_follow", methods=["GET", "POST"])

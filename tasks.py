@@ -31,6 +31,15 @@ log = logging.getLogger(__name__)
 app = Celery(
     "tasks", broker=os.getenv("MICROBLOGPUB_AMQP_BROKER", "pyamqp://guest@localhost//")
 )
+
+# Local testing without RabbitMQ: run tasks eagerly in-process.
+# Single attempt only (no broker-side retry); the watch() worker (Phase 5)
+# restores real retry semantics.
+TASK_EAGER = os.getenv("MICRONOTE_TASK_EAGER", "false").lower() in ("1", "true", "yes", "on")
+if TASK_EAGER:
+    app.conf.task_always_eager = True
+    app.conf.task_eager_propagates = True
+
 SigAuth = HTTPSigAuth(KEY)
 
 
@@ -424,7 +433,7 @@ def finish_post_to_outbox(self, iri: str) -> None:
 
         DB.cache2.delete_many({})
 
-        payload = json.dumps(activity)
+        payload = activitypub.json_dumps(activity)
         for recp in recipients:
             log.debug(f"posting to {recp}")
             post_to_remote_inbox.delay(payload, recp)
@@ -442,7 +451,7 @@ def forward_activity(self, iri: str) -> None:
         recipients = back.followers_as_recipients()
         log.debug(f"Forwarding {activity!r} to {recipients}")
         activity = ap.clean_activity(activity.to_dict())
-        payload = json.dumps(activity)
+        payload = activitypub.json_dumps(activity)
         for recp in recipients:
             log.debug(f"forwarding {activity!r} to {recp}")
             post_to_remote_inbox.delay(payload, recp)

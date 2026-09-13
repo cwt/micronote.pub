@@ -1,4 +1,5 @@
 from datetime import datetime
+from datetime import timezone
 from enum import Enum
 import json
 import logging
@@ -8,7 +9,6 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-from bson.objectid import ObjectId
 from cachetools import LRUCache
 from feedgen.feed import FeedGenerator
 from html2text import html2text
@@ -19,8 +19,10 @@ from little_boxes.backend import Backend
 from little_boxes.errors import ActivityGoneError
 from little_boxes.errors import Error
 from little_boxes.errors import NotAnActivityError
+from neosqlite.objectid import ObjectId
 
 from config import BASE_URL
+from config import DB
 from config import DB_NAME
 from config import EXTRA_INBOXES
 from config import ID
@@ -33,6 +35,23 @@ from config import create_db_client
 logger = logging.getLogger(__name__)
 
 ACTORS_CACHE = LRUCache(maxsize=256)
+
+
+def _json_default(value):
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
+
+
+def json_dumps(data) -> str:
+    """Serializes activity data, normalizing datetimes to ISO strings.
+
+    Needed because the document store may return timestamps as datetime
+    objects (like PyMongo/BSON does) instead of strings.
+    """
+    return json.dumps(data, default=_json_default)
 
 
 def _actor_to_meta(actor: ap.BaseActivity, with_inbox=False) -> Dict[str, Any]:
@@ -81,18 +100,11 @@ class Box(Enum):
 
 
 class MicroblogPubBackend(Backend):
-    """Implements a Little Boxes backend, backed by MongoDB."""
+    """Implements a Little Boxes backend, backed by NeoSQLite."""
 
     def __init__(self, *args, **kwargs):
         super(MicroblogPubBackend, self).__init__(*args, **kwargs)
         self.DB = create_db_client(DB_NAME)
-
-    def __del__(self):
-        self.close_db()
-        del(self.DB)
-
-    def close_db(self):
-        self.DB.client.close()
 
     def debug_mode(self) -> bool:
         return strtobool(os.getenv("MICROBLOGPUB_DEBUG", "false"))
@@ -520,7 +532,7 @@ class MicroblogPubBackend(Backend):
         logger.info(f"recipients={recipients}")
         activity = ap.clean_activity(activity.to_dict())
 
-        payload = json.dumps(activity)
+        payload = json_dumps(activity)
         for recp in recipients:
             logger.debug(f"posting to {recp}")
             self.post_to_remote_inbox(self.get_actor(), payload, recp)
@@ -535,7 +547,6 @@ def gen_feed():
     fg.description(f"{USERNAME} notes")
     fg.logo(ME.get("icon", {}).get("url"))
     fg.language("en")
-    DB = create_db_client(DB_NAME)
     for item in DB.activities.find(
         {"box": Box.OUTBOX.value, "type": "Create", "meta.deleted": False},
         limit=10
@@ -545,14 +556,12 @@ def gen_feed():
         fe.link(href=item["activity"]["object"].get("url"))
         fe.title(item["activity"]["object"]["content"])
         fe.description(item["activity"]["object"]["content"])
-    DB.client.close()
     return fg
 
 
 def json_feed(path: str) -> Dict[str, Any]:
     """JSON Feed (https://jsonfeed.org/) document."""
     data = []
-    DB = create_db_client(DB_NAME)
     for item in DB.activities.find(
         {"box": Box.OUTBOX.value, "type": "Create", "meta.deleted": False},
         limit=10
@@ -566,7 +575,6 @@ def json_feed(path: str) -> Dict[str, Any]:
                 "date_published": item["activity"]["object"].get("published"),
             }
         )
-    DB.client.close()
     return {
         "version": "https://jsonfeed.org/version/1",
         "user_comment": (
@@ -601,7 +609,6 @@ def build_inbox_json_feed(
     if request_cursor:
         q["_id"] = {"$lt": request_cursor}
 
-    DB = create_db_client(DB_NAME)
     for item in DB.activities.find(q, limit=50).sort("_id", -1):
         actor = ap.get_backend().fetch_iri(item["activity"]["actor"])
         data.append(
@@ -619,7 +626,6 @@ def build_inbox_json_feed(
             }
         )
         cursor = str(item["_id"])
-    DB.client.close()
     resp = {
         "version": "https://jsonfeed.org/version/1",
         "title": f"{USERNAME}'s stream",

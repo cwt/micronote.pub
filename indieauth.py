@@ -15,7 +15,7 @@ from flask import url_for
 import flask
 from itsdangerous import BadSignature
 import mf2py
-import pymongo
+from neosqlite import DESCENDING
 
 from config import DB
 from config import JWT
@@ -124,7 +124,7 @@ def indieauth_endpoint():
             "client_id": client_id,
         },  # },  #  , 'verified': False},
         {"$set": {"verified": True}},
-        sort=[("_id", pymongo.DESCENDING)],
+        sort=[("_id", DESCENDING)],
     )
     current_app.logger.debug(auth)
     current_app.logger.debug(code, redirect_uri, client_id)
@@ -163,7 +163,7 @@ def token_endpoint():
         payload = dict(
             me=me, client_id=client_id, scope=scope, ts=datetime.now().timestamp()
         )
-        token = JWT.dumps(payload).decode("utf-8")
+        token = JWT.dumps(payload)
 
         return build_auth_resp({"me": me, "scope": scope, "access_token": token})
 

@@ -307,7 +307,7 @@ def api_new_note():
 @api_required
 def api_stream():
     return Response(
-        response=json.dumps(
+        response=activitypub.json_dumps(
             activitypub.build_inbox_json_feed("/api/stream", request.args.get("cursor"))
         ),
         headers={"Content-Type": "application/json"},

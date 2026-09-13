@@ -13,7 +13,7 @@ def config():
     with open(
         os.path.join(os.path.dirname(__file__), "..", "config/me.yml"), "rb"
     ) as f:
-        yield yaml.load(f)
+        yield yaml.safe_load(f)
 
 
 def resp2plaintext(resp):

@@ -1,5 +1,5 @@
-from bson.objectid import ObjectId
 from flask import request
+from neosqlite.objectid import ObjectId
 
 
 def paginated_query(db, q, limit=25, sort_key="_id"):

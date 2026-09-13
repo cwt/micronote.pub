@@ -3,12 +3,13 @@ from enum import Enum
 import mimetypes
 import os
 import subprocess
+import threading
 
-from itsdangerous import JSONWebSignatureSerializer
+from itsdangerous import URLSafeTimedSerializer
 from little_boxes import strtobool
 from little_boxes.activitypub import DEFAULT_CTX
-from pymongo import MongoClient
-import pymongo
+from neosqlite import ASCENDING
+from neosqlite import Connection
 import requests
 import sass
 import yaml
@@ -112,59 +113,90 @@ USER_AGENT = (
 )
 
 
-def create_mongo_client():
-    return MongoClient(
-        host=[os.getenv("MICROBLOGPUB_MONGODB_HOST", "localhost:27017")],
-        connect=False,
-    )
+def _db_path(db_name):
+    data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+    os.makedirs(data_dir, exist_ok=True)
+    return os.path.join(data_dir, f"{db_name}.db")
+
+
+_DB_CONNECTION = threading.local()
+
+
+def create_db_connection():
+    """Thread-local NeoSQLite connection (one SQLite file, WAL mode).
+
+    SQLite handles are pinned to their creating thread, so each thread
+    gets its own connection to the same file.
+    """
+    if getattr(_DB_CONNECTION, "connection", None) is None:
+        _DB_CONNECTION.connection = Connection(
+            _db_path(DB_NAME),
+            journal_mode=os.getenv("MICRONOTE_JOURNAL_MODE", "WAL"),
+            ttl_sweep_interval_s=int(os.getenv("MICRONOTE_TTL_SWEEP_INTERVAL_S", "60")),
+        )
+    return _DB_CONNECTION.connection
 
 
 def create_db_client(db_name):
-    return create_mongo_client()[db_name]
+    return _ThreadLocalDB(db_name)
 
 
-DB_NAME = "{}_{}".format(USERNAME, DOMAIN.replace(".", "_"))
+class _ThreadLocalDB:
+    """Proxy exposing collections from the calling thread's connection.
+
+    Attribute access (e.g. `DB.activities`) resolves against the current
+    thread's connection on every use, so module-level `DB` imports stay
+    safe in threaded servers.
+    """
+
+    def __init__(self, db_name):
+        self._db_name = db_name
+
+    def __getattr__(self, name):
+        return getattr(create_db_connection().get_database(self._db_name), name)
+
+
+DB_NAME = "{}_{}".format(USERNAME, DOMAIN.replace(".", "_").replace(":", "_"))
 DB = create_db_client(DB_NAME)
-GRIDFS = create_db_client(f"{DB_NAME}_gridfs")
-MEDIA_CACHE = MediaCache(GRIDFS, USER_AGENT)
+MEDIA_CACHE = MediaCache(create_db_connection, USER_AGENT)
 
 
 def create_indexes():
-    DB.activities.create_index([("remote_id", pymongo.ASCENDING)])
-    DB.activities.create_index([("activity.object.id", pymongo.ASCENDING)])
+    DB.activities.create_index([("remote_id", ASCENDING)])
+    DB.activities.create_index([("activity.object.id", ASCENDING)])
     DB.activities.create_index([
-        ("activity.object.id", pymongo.ASCENDING),
-        ("meta.deleted", pymongo.ASCENDING),
+        ("activity.object.id", ASCENDING),
+        ("meta.deleted", ASCENDING),
     ])
-    DB.cache2.create_index([("path", pymongo.ASCENDING), ("type", pymongo.ASCENDING), ("arg", pymongo.ASCENDING)])
+    DB.cache2.create_index([("path", ASCENDING), ("type", ASCENDING), ("arg", ASCENDING)])
     DB.cache2.create_index("date", expireAfterSeconds=3600 * 12)
-    DB.translate.create_index([("hash", pymongo.ASCENDING), ("target_lang", pymongo.ASCENDING)])
+    DB.translate.create_index([("hash", ASCENDING), ("target_lang", ASCENDING)])
 
     # Index for the block query
     DB.activities.create_index(
         [
-            ("box", pymongo.ASCENDING),
-            ("type", pymongo.ASCENDING),
-            ("meta.undo", pymongo.ASCENDING),
+            ("box", ASCENDING),
+            ("type", ASCENDING),
+            ("meta.undo", ASCENDING),
         ]
     )
 
     # Index for count queries
     DB.activities.create_index(
         [
-            ("box", pymongo.ASCENDING),
-            ("type", pymongo.ASCENDING),
-            ("meta.undo", pymongo.ASCENDING),
-            ("meta.deleted", pymongo.ASCENDING),
+            ("box", ASCENDING),
+            ("type", ASCENDING),
+            ("meta.undo", ASCENDING),
+            ("meta.deleted", ASCENDING),
         ]
     )
 
     DB.activities.create_index(
         [
-            ("type", pymongo.ASCENDING),
-            ("activity.object.type", pymongo.ASCENDING),
-            ("activity.object.inReplyTo", pymongo.ASCENDING),
-            ("meta.deleted", pymongo.ASCENDING),
+            ("type", ASCENDING),
+            ("activity.object.type", ASCENDING),
+            ("activity.object.inReplyTo", ASCENDING),
+            ("meta.deleted", ASCENDING),
         ]
     )
 
@@ -173,20 +205,18 @@ def _drop_db():
     if not DEBUG_MODE:
         return
 
-    create_mongo_client().drop_database(DB_NAME)
+    create_db_connection().drop_database(DB_NAME)
 
 
 KEY = get_key(ID, USERNAME, DOMAIN)
 
 JWT_SECRET = get_secret_key("jwt")
-JWT = JSONWebSignatureSerializer(JWT_SECRET)
+JWT = URLSafeTimedSerializer(JWT_SECRET)
 
 
 def _admin_jwt_token() -> str:
     return JWT.dumps(# type: ignore
         {"me": "ADMIN", "ts": datetime.now().timestamp()}
-    ).decode(# type: ignore
-        "utf-8"
     )
 
 

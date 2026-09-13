@@ -208,7 +208,7 @@ def get_actor(url):
 @blueprint.app_template_filter()
 def format_time(val):
     if val:
-        dt = parser.parse(val)
+        dt = val if isinstance(val, datetime) else parser.parse(val)
         tz = timedelta(hours=TIMEZONE)
         if TIMEZONE == 0:
             tz_name = " UTC"
@@ -223,7 +223,7 @@ def format_time(val):
 @blueprint.app_template_filter()
 def format_timeago(val):
     if val:
-        dt = parser.parse(val)
+        dt = val if isinstance(val, datetime) else parser.parse(val)
         return timeago.format(dt, datetime.now(timezone.utc))
     return val
 
