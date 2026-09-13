@@ -9,7 +9,7 @@ python-u2flib-server
 Flask
 Flask-WTF
 Celery
-neosqlite==1.16.0
+neosqlite==1.16.1
 timeago
 bleach
 html2text
