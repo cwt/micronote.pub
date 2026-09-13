@@ -11,8 +11,8 @@ reload-fed:
 	docker build . -t microblogpub:latest
 	docker-compose -p instance2 -f docker-compose-tests.yml stop
 	docker-compose -p instance1 -f docker-compose-tests.yml stop
-	WEB_PORT=5006 CONFIG_DIR=./tests/fixtures/instance1/config docker-compose -p instance1 -f docker-compose-tests.yml up -d --force-recreate --build
-	WEB_PORT=5007 CONFIG_DIR=./tests/fixtures/instance2/config docker-compose -p instance2 -f docker-compose-tests.yml up -d --force-recreate --build
+	WEB_PORT=5006 CONFIG_DIR=./tests/fixtures/instance1/config DATA_DIR=./data/instance1 docker-compose -p instance1 -f docker-compose-tests.yml up -d --force-recreate --build
+	WEB_PORT=5007 CONFIG_DIR=./tests/fixtures/instance2/config DATA_DIR=./data/instance2 docker-compose -p instance2 -f docker-compose-tests.yml up -d --force-recreate --build
 
 reload-dev:
 	# docker build . -t microblogpub:latest

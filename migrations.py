@@ -113,7 +113,7 @@ def tmp_migrate4():
 @login_required
 def tmp_migrate5():
     for activity in DB.activities.find():
-        tasks.cache_actor.delay(activity["remote_id"], also_cache_attachments=False)
+        tasks.enqueue_job("cache_actor", iri=activity["remote_id"], also_cache_attachments=False)
 
     return "Done"
 

@@ -1,32 +1,11 @@
-version: '3'
+# Dev runs the web app locally (`flask run`, see README); this only
+# provides the background worker against the same ./data SQLite file.
 services:
-  flower:
+  worker:
     image: microblogpub:latest
-    links:
-     - mongo
-     - rabbitmq
-    command: 'celery flower -l info -A tasks --broker amqp://guest@rabbitmq// --address=0.0.0.0 --port=5556'
-    environment:
-     - MICROBLOGPUB_AMQP_BROKER=pyamqp://guest@rabbitmq//
-     - MICROBLOGPUB_MONGODB_HOST=mongo:27017
-    ports:
-     - "5556:5556"
-  celery:
-    image: microblogpub:latest
-    links:
-     - mongo
-     - rabbitmq
-    command: 'celery worker -l info -A tasks'
-    environment:
-     - MICROBLOGPUB_AMQP_BROKER=pyamqp://guest@rabbitmq//
-     - MICROBLOGPUB_MONGODB_HOST=mongo:27017
-  mongo:
-    image: "mongo:latest"
+    command: 'python worker.py'
     volumes:
-     - "./data:/data/db"
-    ports:
-     - "27017:27017"
-  rabbitmq:
-    image: "rabbitmq:latest"
-    ports:
-     - "5672:5672"
+     - "./config:/app/config"
+     - "./data:/app/data"
+    environment:
+     - MICROBLOGPUB_DEBUG=1

@@ -1,38 +1,19 @@
-version: '2'
 services:
   web:
     image: 'microblogpub:latest'
     ports:
      - "${WEB_PORT}:5005"
-    links:
-     - mongo
-     - rmq
     volumes:
      - "${CONFIG_DIR}:/app/config"
+     - "${DATA_DIR}:/app/data"
      - "./static:/app/static"
     environment:
-     - MICROBLOGPUB_AMQP_BROKER=pyamqp://guest@rmq//
-     - MICROBLOGPUB_MONGODB_HOST=mongo:27017
-  celery:
+     - MICROBLOGPUB_DEBUG=1
+  worker:
     image: 'microblogpub:latest'
-    links:
-     - mongo
-     - rmq
-    command: 'celery worker -l info -A tasks'
+    command: 'python worker.py'
     volumes:
      - "${CONFIG_DIR}:/app/config"
+     - "${DATA_DIR}:/app/data"
     environment:
-     - MICROBLOGPUB_AMQP_BROKER=pyamqp://guest@rmq//
-     - MICROBLOGPUB_MONGODB_HOST=mongo:27017
-  mongo:
-    image: "mongo:latest"
-    volumes:
-     - "${DATA_DIR}/mongodb:/data/db"
-  rmq:
-    image: "rabbitmq:latest"
-    hostname: "my-rabbit"
-    environment:
-     - RABBITMQ_ERLANG_COOKIE=secretrabbit
-     - RABBITMQ_NODENAME=rabbit@my-rabbit
-    volumes:
-     - "${DATA_DIR}/rabbitmq:/var/lib/rabbitmq"
+     - MICROBLOGPUB_DEBUG=1
