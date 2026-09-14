@@ -245,7 +245,8 @@ def admin_login():
     if request.method == "POST":
         csrf.protect()
         pwd = request.form.get("pass")
-        if pwd and verify_pass(pwd):
+        username = request.form.get("username")
+        if pwd and username == USERNAME and verify_pass(pwd):
             if credentials:
                 assertion = json.loads(request.form.get("assertion"))
                 try:

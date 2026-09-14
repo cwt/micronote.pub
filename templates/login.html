@@ -22,7 +22,8 @@
 <div id="login-container">
 	<form id="login-form" method="POST">
 		<input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-		<input type="password" name="pass" placeholder="password">
+		<input type="text" name="username" value="{{ config.USERNAME }}" autocomplete="username" readonly>
+		<input type="password" name="pass" placeholder="password" autocomplete="current-password">
 	{% if webauthn_enabled %}
 		<input type="hidden" name="assertion" id="assertion-payload" value=""> <input type="submit" value="waiting for security key" disabled>
 	{% else %}
