@@ -71,7 +71,7 @@ icon_url: 'https://you-avatar-url'
 domain: 'your-domain.tld'
 summary: 'your summary'
 https: true
-pass: $2b$12$iW497g...
+pass: '$2b$12$iW497g...'
 ```
 
 ### Deployment with Docker or Podman
