@@ -1,8 +1,9 @@
 import mimetypes
+import os
 from enum import Enum
 from gzip import GzipFile
 from io import BytesIO
-from typing import Any
+from typing import Any, NamedTuple
 
 import requests
 from neosqlite.gridfs import GridFSBucket
@@ -14,6 +15,17 @@ WEBP_METHOD = 6
 WEBP_MIMETYPE = "image/webp"
 
 MAX_REMOTE_ATTACHMENT_BYTES = 20 * 1024 * 1024
+
+
+class StoredUpload(NamedTuple):
+    oid: str
+    filename: str
+    mimetype: str | None
+
+
+def _webp_filename(filename: str) -> str:
+    """Swaps the extension for .webp, so URLs describe the stored bytes."""
+    return os.path.splitext(filename)[0] + ".webp"
 
 
 def load(url, user_agent):
@@ -173,11 +185,13 @@ class MediaCache:
             t1.thumbnail((size, size))
             self._store(_encode_image(t1), url, size, WEBP_MIMETYPE, Kind.ACTOR_ICON)
 
-    def save_upload(self, obuf: BytesIO, filename: str, max_size: tuple) -> str:
+    def save_upload(self, obuf: BytesIO, filename: str, max_size: tuple) -> StoredUpload:
         mtype = mimetypes.guess_type(filename)[0]
         if mtype and mtype.startswith('image'):
             # Re-encoding as WebP drops EXIF (after applying orientation),
-            # so no separate EXIF-strip step is needed.
+            # so no separate EXIF-strip step is needed. The stored filename
+            # takes a .webp extension to match the stored bytes.
+            filename = _webp_filename(filename)
             obuf.seek(0)
             img = Image.open(obuf)
             img.load()
@@ -199,7 +213,7 @@ class MediaCache:
             mtype,
             Kind.UPLOAD,
         )
-        return str(oid)
+        return StoredUpload(str(oid), filename, mtype)
 
     def cache(self, url: str, kind: Kind) -> None:
         if kind == Kind.ACTOR_ICON:

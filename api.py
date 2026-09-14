@@ -1,4 +1,3 @@
-import mimetypes
 from functools import wraps
 from io import BytesIO
 
@@ -269,15 +268,14 @@ def api_new_note():
         rfilename = secure_filename(file.filename)
         with BytesIO() as buf:
             file.save(buf)
-            oid = MEDIA_CACHE.save_upload(buf, rfilename, IMAGE_MAX_SIZE)
-        mtype = mimetypes.guess_type(rfilename)[0]
-        url = f"{BASE_URL}/uploads/{oid}/{rfilename}"
+            stored = MEDIA_CACHE.save_upload(buf, rfilename, IMAGE_MAX_SIZE)
+        url = f"{BASE_URL}/uploads/{stored.oid}/{stored.filename}"
         if CDN_URL:
-            url = f"{CDN_URL}/uploads/{oid}/{rfilename}"
+            url = f"{CDN_URL}/uploads/{stored.oid}/{stored.filename}"
         raw_note["attachment"] = [
             {
-                "mediaType": mtype,
-                "name": rfilename,
+                "mediaType": stored.mimetype,
+                "name": stored.filename,
                 "type": "Document",
                 "url": url,
             }

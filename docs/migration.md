@@ -47,7 +47,7 @@ Rewrite `utils/media.py` (`MediaCache`) from legacy `gridfs.GridFS` to `GridFSBu
 - `put(buf, url=, size=, kind=, content_type=, upload_filename=)` → `upload_from_stream(filename, buf, metadata={"url":..., "kind":..., "size":...})`.
 - `find_one({url, size, kind})` → `find({"metadata.url":..., "metadata.kind":..., "metadata.size":...})`.
 - Reads: `f.content_type / f.length / f.md5 / f.uploadDate` → `GridOut` modern attrs (`upload_date`); update `app.py:serve_media/serve_uploads` headers and `filters.py:_get_file_url` (`str(doc._id)` stays).
-- Media policy (post-migration): all cached/uploaded images are re-encoded to WebP (quality 85) with EXIF orientation applied and alpha preserved; non-images stay gzipped. Serving sniffs gzip magic, so pre-WebP entries need no migration.
+- Media policy (post-migration): all cached/uploaded images are re-encoded to WebP (quality 85) with EXIF orientation applied and alpha preserved; non-images stay gzipped. Serving sniffs gzip magic, so pre-WebP entries need no migration. Uploaded images take a `.webp` extension in both storage and URL; old URLs keep serving since the route looks up by id only.
 - Requires NeoSQLite ≥ 1.16.2, whose `GridOutCursor` filters dotted `metadata.*` correctly (1.16.1 silently returned the whole bucket).
 
 Verify: upload/serve round-trip + admin media views green on MongoDB.
