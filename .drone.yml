@@ -5,14 +5,14 @@ steps:
   - name: lint
     image: python:3.11-slim
     commands:
-      - pip install -r dev-requirements.txt
+      - pip install ".[dev]"
       - ruff check .
-      - mypy . --ignore-missing-imports
+      - mypy .
       - djlint --lint templates
   - name: test
     image: python:3.11-slim
     commands:
-      - pip install -r requirements.txt -r dev-requirements.txt
+      - pip install ".[dev]"
       - cp tests/fixtures/me.yml config/me.yml
       - python -m pytest tests/integration_test.py -v
   - name: docker

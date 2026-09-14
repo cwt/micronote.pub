@@ -5,7 +5,7 @@ password:
 	$(PYTHON) -c "import bcrypt; from getpass import getpass; print(bcrypt.hashpw(getpass().encode('utf-8'), bcrypt.gensalt()).decode('utf-8'))"
 
 docker:
-	mypy . --ignore-missing-imports
+	mypy .
 	docker build . -t $(IMAGE)
 
 reload-fed:

@@ -50,7 +50,7 @@ Activities are verified using HTTP Signatures or by fetching the content on the 
 Requires Python 3.11.
 
 ```shell
-$ pip install -r requirements.txt
+$ pip install .
 $ cp config/me.sample.yml config/me.yml
 ``` 
 
@@ -200,7 +200,7 @@ The most convenient way to hack on micronote.pub is to run the server locally, a
 
 ```shell
 # One-time setup
-$ pip install -r requirements.txt
+$ pip install ".[dev]"
 # Run the background worker (the dev compose only starts the worker)
 $ docker-compose -f docker-compose-dev.yml up -d
 # Run the server locally
