@@ -252,6 +252,23 @@ fetch-fallback path). Single cases run as
 `localhost:5005`/`localhost:5006`. The full harness spec lives in
 `docs/migration.md` (Phase 7).
 
+### Cleaning up duplicate follows
+
+A follower relationship is keyed by actor, but older versions stored
+one row per Follow *activity*, so repeats (same actor, new activity
+id) could pile up. Current code drops those at ingest, and
+`dedup.py` cleans rows that predate the fix — inbox follows keyed by
+actor, outbox follows keyed by object, first row kept, undone rows
+left alone:
+
+```shell
+$ python dedup.py
+```
+
+Stop the web/worker processes first so nothing writes mid-cleanup.
+Re-follow after Undo is unaffected (undone rows are excluded from
+both the ingest check and the cleanup).
+
 ## API
 
 Your admin API key can be found at `config/admin_api_key.key`.
