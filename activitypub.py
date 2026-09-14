@@ -253,6 +253,19 @@ class MicroblogPubBackend(Backend):
             {"box": Box.INBOX.value, "remote_id": iri}
         ))
 
+    @ensure_it_is_me
+    def inbox_has_active_follower(self, as_actor: ap.Person, actor_id: str) -> bool:
+        """True when actor_id already has a non-undone Follow.
+
+        A follower relationship is keyed by actor, not by activity: a new
+        Follow id from an already-following actor is a no-op. Undone
+        follows are excluded, so re-follow after Undo still goes through.
+        """
+        return bool(self.DB.activities.find_one(
+            {"box": Box.INBOX.value, "type": ap.ActivityType.FOLLOW.value,
+             "activity.actor": actor_id, "meta.undo": False}
+        ))
+
     def set_post_to_remote_inbox(self, cb):
         self.post_to_remote_inbox_cb = cb
 

@@ -62,6 +62,11 @@ def post_to_inbox(activity: ap.BaseActivity) -> None:
         log.info(f"received duplicate activity {activity!r}, dropping it")
         return
 
+    if activity.has_type(ap.ActivityType.FOLLOW):
+        if back.inbox_has_active_follower(MY_PERSON, actor.id):
+            log.info(f"actor {actor.id} already follows, dropping duplicate Follow {activity!r}")
+            return
+
     back.save(Box.INBOX, activity)
     enqueue_job("process_new_activity", iri=activity.id)
 
