@@ -21,7 +21,7 @@
   --color-summary: #ddd;
   --color-note-link: #666;
   --color-menu-background: #222;
-  --primary-color: #33ff00;
+  --primary-color: #3f0;
 }
 
 .note-container p:first-child {
@@ -32,7 +32,7 @@ html, body {
   height: 100%;
 }
 
-@media only screen and (max-width: 480px) {
+@media only screen and (width <= 480px) {
   #menu-item-following {
     display: none;
   }
@@ -161,7 +161,7 @@ a:hover {
 
 #header .menu {
   clear: both;
-  padding: 0 0 10px 0;
+  padding: 0 0 10px;
 }
 
 #header .menu ul {
@@ -185,7 +185,7 @@ a:hover {
   color: var(--color-light);
   border-radius: 2px;
   margin-left: 5px;
-  padding: 3px 5px 0px 5px;
+  padding: 3px 5px 0;
   font-weight: bold;
 }
 
@@ -339,7 +339,7 @@ a:hover {
   background: var(--color-menu-background);
   padding: 1px 6px;
   color: var(--color-light);
-  margin-right: 0px;
+  margin-right: 0;
   border-radius: 2px;
   display: inline-block;
 }
@@ -353,7 +353,7 @@ a:hover {
   background: var(--color-menu-background);
   color: var(--color-light);
   padding: 5px;
-  margin-right: 0px;
+  margin-right: 0;
   border-radius: 2px;
 }
 
@@ -365,9 +365,9 @@ a:hover {
   background: var(--color-menu-background);
   color: var(--color-light);
   margin-top: 1px;
-  margin-bottom: 0px;
+  margin-bottom: 0;
   margin-left: 2px;
-  margin-right: 0px;
+  margin-right: 0;
   border-radius: 2px;
   padding: 1px 6px;
 }
@@ -391,7 +391,7 @@ form.action-form {
 
 .bottom-bar .perma-item {
   margin-left: 2px;
-  margin-right: 0px;
+  margin-right: 0;
   margin-top: 1px;
   padding: 1px 6px;
   color: var(--primary-color);
@@ -442,7 +442,7 @@ textarea, input {
   background: var(--color-menu-background);
   padding: 10px;
   color: var(--color-light);
-  border: 0px;
+  border: 0;
   border-radius: 2px;
 }
 
@@ -450,7 +450,7 @@ input {
   padding: 10px;
 }
 
-input[type=submit] {
+input[type="submit"] {
   color: var(--primary-color);
   text-transform: uppercase;
 }
@@ -461,5 +461,5 @@ video {
 }
 
 .note-video {
-  margin: 30px 0 10px 0;
+  margin: 30px 0 10px;
 }

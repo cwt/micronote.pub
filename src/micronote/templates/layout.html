@@ -1,4 +1,4 @@
-<!DOCTYPE HTML>
+<!DOCTYPE html>
 <html lang="en" data-theme="{{ config.THEME_STYLE.value }}">
 <head>
 	<meta charset="utf-8">
@@ -12,12 +12,12 @@
 	<meta name="apple-mobile-web-app-title" content="{{ config.NAME }}'s micronote.pub">
 	<link rel="apple-touch-icon" href="{{ config.CDN_URL }}/static/pwa/icon-180.png">
 	<link rel="shortcut icon" href="{{ config.CDN_URL }}/static/favicon.ico">
-	<link rel="stylesheet" href="{{ config.CDN_URL }}/static/css/pure-min.css" media="none">
-	<link rel="stylesheet" href="/static/css/Mali.css" media="none">
-	<link rel="stylesheet" href="/static/css/BlobMoji.css" media="none">
-	<link rel="stylesheet" href="/static/css/Quivira.css" media="none">
-	<link rel="stylesheet" href="{{ config.CDN_URL }}/static/css/notepad.css" media="none">
-	<link rel="stylesheet" href="{{ config.CDN_URL }}/static/app.css" media="none">
+	<link rel="stylesheet" href="{{ config.CDN_URL }}/static/css/pure-min.css" media="not all">
+	<link rel="stylesheet" href="/static/css/Mali.css" media="not all">
+	<link rel="stylesheet" href="/static/css/BlobMoji.css" media="not all">
+	<link rel="stylesheet" href="/static/css/Quivira.css" media="not all">
+	<link rel="stylesheet" href="{{ config.CDN_URL }}/static/css/notepad.css" media="not all">
+	<link rel="stylesheet" href="{{ config.CDN_URL }}/static/app.css" media="not all">
 	<link rel="authorization_endpoint" href="{{ config.ID }}/indieauth">
 	<link rel="token_endpoint" href="{{ config.ID }}/token">
 {% if not request.args.get("older_than") and not request.args.get("previous_than") %}

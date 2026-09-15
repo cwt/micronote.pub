@@ -60,13 +60,15 @@
 			<div style="padding: 20px 0;">
 				{% if obj.attachment | not_only_imgs %}
 				<h3 class="l">Attachments</h3>
-				<ul style="padding: 0;">
 				{% endif %}
+				<ul style="margin: 0; padding: 0; list-style: none;">
 				{% for a in obj.attachment %}
 					{% if (a.mediaType and a.mediaType.startswith("image/")) or (a.type and a.type == 'Image') %}
-						<a href="{{ a.url | get_attachment_url(None) }}">
-							<img src="{{a.url | get_attachment_url(720) }}" class="img-attachment" alt="{{ a.name or '' }}">
-						</a>
+						<li>
+							<a href="{{ a.url | get_attachment_url(None) }}">
+								<img src="{{a.url | get_attachment_url(720) }}" class="img-attachment" alt="{{ a.name or '' }}">
+							</a>
+						</li>
 					{% elif (a.mediaType and a.mediaType.startswith("video/")) %}
 						<li>
 							<video controls preload="metadata" src="{{ a.url }}"></video>
@@ -77,9 +79,7 @@
 						</li>
 					{% endif %}
 				{% endfor %}
-				{% if obj.attachment | not_only_imgs %}
 				</ul>
-				{% endif %}
 			</div>
 			{% endif %}
 			{% if meta and meta.og_metadata and obj | has_type('Note') %}
@@ -88,11 +88,9 @@
 						<a href="{{ og.url }}" class="og-link" style="margin: 30px 0; clear: both; display: flex;">
 							<div style="padding: 0 20px;">
 								<img style="width: 100px; border-radius: 3px; float: left; margin-top: 16px; margin-right: 10px;" src="{{ og.image | get_og_image_url }}" alt="">
-								<p>
-									<strong>{{ og.title }}</strong>
-									<p>{{ og.description | truncate(80) }}</p>
-									<small>{{ og.site_name }}</small>
-								</p>
+								<p><strong>{{ og.title }}</strong></p>
+								<p>{{ og.description | truncate(80) }}</p>
+								<small>{{ og.site_name }}</small>
 							</div>
 						</a>
 					{% endif %}
