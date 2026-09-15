@@ -148,10 +148,18 @@ def is_api_request() -> bool:
     return media_type in HEADERS or media_type == "application/json"
 
 
+def wants_html() -> bool:
+    """True when the client sent a browser-like Accept header."""
+    return "text/html" in request.headers.get("Accept", "")
+
+
 @app.errorhandler(ValueError)
 def handle_value_error(error):
     logger.error(f"caught value error: {error!r}, {traceback.format_tb(error.__traceback__)}")
-    response = flask_jsonify(message=error.args[0])
+    message = error.args[0] if error.args else "invalid request"
+    if wants_html():
+        return render_template("error.html", message=message), 400
+    response = flask_jsonify(message=message)
     response.status_code = 400
     return response
 
@@ -159,6 +167,9 @@ def handle_value_error(error):
 @app.errorhandler(Error)
 def handle_activitypub_error(error):
     logger.error(f"caught activitypub error {error!r}, {traceback.format_tb(error.__traceback__)}")
+    if wants_html():
+        message = getattr(error, "message", "") or str(error) or error.__class__.__name__
+        return render_template("error.html", message=message), getattr(error, "status_code", 400)
     response = flask_jsonify(error.to_dict())
     response.status_code = error.status_code
     return response

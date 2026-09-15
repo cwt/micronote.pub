@@ -17,7 +17,7 @@
 		{% if reply %}
 			<input type="hidden" name="reply" value="{{reply}}">
 		{% endif %}
-			<textarea style="width: calc(100% - 20px);" name="content" rows="5" cols="50" autofocus="autofocus">{{ content }}</textarea>
+			<textarea style="width: calc(100% - 20px);" name="content" rows="5" cols="50" autofocus="autofocus" required>{{ content }}</textarea>
 			<input style="width: calc(100% - 20px);" type="file" name="file">
 			<div style="margin-top: 20px; width: 100%;">
 				<input style="width: 100%;" type="submit" value="post">

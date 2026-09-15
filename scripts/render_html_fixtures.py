@@ -409,10 +409,14 @@ def render_pages(out_dir: str) -> list[str]:
             failures.append(f"{name}: {path} -> {status}")
 
     with app.test_request_context("/"):
-        body = render_template("500.html")
-    with open(os.path.join(out_dir, "500.html"), "w") as f:
-        f.write(body)
-    print(f"{'500':26s} {'(direct render)':60s} 200")
+        extras = {
+            "500": render_template("500.html"),
+            "error": render_template("error.html", message="missing content"),
+        }
+    for name, body in extras.items():
+        with open(os.path.join(out_dir, f"{name}.html"), "w") as f:
+            f.write(body)
+        print(f"{name:26s} {'(direct render)':60s} 200")
 
     return failures
 
