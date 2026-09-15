@@ -540,7 +540,10 @@ def run() -> None:
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
-    run()
+    try:
+        run()
+    except KeyboardInterrupt:
+        log.info("worker stopped")
 
 
 if __name__ == "__main__":
