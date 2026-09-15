@@ -46,7 +46,7 @@ def _api_required():
         return
 
     # Token verification
-    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    token = request.headers.get("Authorization", "").removeprefix("Bearer ")
     if not token:
         # IndieAuth token
         token = request.form.get("access_token", "")
@@ -209,12 +209,7 @@ def api_undo():
 
 
 def without_id(docs):
-    out = []
-    for d in docs:
-        if "_id" in d:
-            del d["_id"]
-        out.append(d)
-    return out
+    return [{k: v for k, v in d.items() if k != "_id"} for d in docs]
 
 
 @blueprint.route("/api/debug", methods=["GET", "DELETE"])
@@ -264,15 +259,15 @@ def api_new_note():
         if tag["type"] == "Mention":
             cc.append(tag["href"])
 
-    raw_note = dict(
-        attributedTo=MY_PERSON.id,
-        cc=list(set(cc)),
-        to=[to if to else ap.AS_PUBLIC],
-        content=content,
-        tag=tags,
-        source={"mediaType": "text/markdown", "content": source},
-        inReplyTo=reply.id if reply else None,
-    )
+    raw_note = {
+        "attributedTo": MY_PERSON.id,
+        "cc": list(set(cc)),
+        "to": [to if to else ap.AS_PUBLIC],
+        "content": content,
+        "tag": tags,
+        "source": {"mediaType": "text/markdown", "content": source},
+        "inReplyTo": reply.id if reply else None,
+    }
 
     if "file" in request.files and request.files["file"].filename:
         file = request.files["file"]
@@ -280,9 +275,8 @@ def api_new_note():
         with BytesIO() as buf:
             file.save(buf)
             stored = MEDIA_CACHE.save_upload(buf, rfilename, IMAGE_MAX_SIZE)
-        url = f"{BASE_URL}/uploads/{stored.oid}/{stored.filename}"
-        if CDN_URL:
-            url = f"{CDN_URL}/uploads/{stored.oid}/{stored.filename}"
+        base_asset_url = CDN_URL or BASE_URL
+        url = f"{base_asset_url}/uploads/{stored.oid}/{stored.filename}"
         raw_note["attachment"] = [
             {
                 "mediaType": stored.mimetype,

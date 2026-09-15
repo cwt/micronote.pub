@@ -1,6 +1,6 @@
 import mimetypes
 import os
-from enum import Enum
+from enum import StrEnum
 from gzip import GzipFile
 from io import BytesIO
 from typing import Any, NamedTuple
@@ -48,7 +48,7 @@ def load(url, user_agent):
         return img
 
 
-class Kind(Enum):
+class Kind(StrEnum):
     ATTACHMENT = "attachment"
     ACTOR_ICON = "actor_icon"
     UPLOAD = "upload"
@@ -159,22 +159,21 @@ class MediaCache:
             url, stream=True, headers={"User-Agent": self.user_agent}
         ) as resp:
             resp.raise_for_status()
-            with BytesIO() as buf:
-                with GzipFile(mode="wb", fileobj=buf) as gzipped:
-                    downloaded = 0
-                    for chunk in resp.iter_content(chunk_size=65536):
-                        if chunk:
-                            downloaded += len(chunk)
-                            if downloaded > MAX_REMOTE_ATTACHMENT_BYTES:
-                                raise ValueError(f"attachment over size cap: {url}")
-                            gzipped.write(chunk)
-                self._store(
-                    buf.getvalue(),
-                    url,
-                    None,
-                    mimetypes.guess_type(url)[0],
-                    Kind.ATTACHMENT,
-                )
+            with BytesIO() as buf, GzipFile(mode="wb", fileobj=buf) as gzipped:
+                downloaded = 0
+                for chunk in resp.iter_content(chunk_size=65536):
+                    if chunk:
+                        downloaded += len(chunk)
+                        if downloaded > MAX_REMOTE_ATTACHMENT_BYTES:
+                            raise ValueError(f"attachment over size cap: {url}")
+                        gzipped.write(chunk)
+            self._store(
+                buf.getvalue(),
+                url,
+                None,
+                mimetypes.guess_type(url)[0],
+                Kind.ATTACHMENT,
+            )
 
     def cache_actor_icon(self, url: str) -> None:
         if self.get_file(url, 50, Kind.ACTOR_ICON):
@@ -185,7 +184,7 @@ class MediaCache:
             t1.thumbnail((size, size))
             self._store(_encode_image(t1), url, size, WEBP_MIMETYPE, Kind.ACTOR_ICON)
 
-    def save_upload(self, obuf: BytesIO, filename: str, max_size: tuple) -> StoredUpload:
+    def save_upload(self, obuf: BytesIO, filename: str, max_size: tuple[int, int]) -> StoredUpload:
         mtype = mimetypes.guess_type(filename)[0]
         if mtype and mtype.startswith('image'):
             # Re-encoding as WebP drops EXIF (after applying orientation),
@@ -201,10 +200,9 @@ class MediaCache:
             mtype = WEBP_MIMETYPE
         else:
             obuf.seek(0)
-            with BytesIO() as gbuf:
-                with GzipFile(mode="wb", fileobj=gbuf) as gzipfile:
-                    gzipfile.write(obuf.getvalue())
-                raw = gbuf.getvalue()
+            with BytesIO() as gbuf, GzipFile(mode="wb", fileobj=gbuf) as gzipfile:
+                gzipfile.write(obuf.getvalue())
+            raw = gbuf.getvalue()
 
         oid = self._store(
             raw,
@@ -216,12 +214,13 @@ class MediaCache:
         return StoredUpload(str(oid), filename, mtype)
 
     def cache(self, url: str, kind: Kind) -> None:
-        if kind == Kind.ACTOR_ICON:
-            self.cache_actor_icon(url)
-        elif kind == Kind.OG_IMAGE:
-            self.cache_og_image(url)
-        else:
-            self.cache_attachment(url)
+        match kind:
+            case Kind.ACTOR_ICON:
+                self.cache_actor_icon(url)
+            case Kind.OG_IMAGE:
+                self.cache_og_image(url)
+            case _:
+                self.cache_attachment(url)
 
     def get_actor_icon(self, url: str, size: int) -> Any:
         return self.get_file(url, size, Kind.ACTOR_ICON)

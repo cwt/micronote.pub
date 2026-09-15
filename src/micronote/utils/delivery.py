@@ -22,11 +22,11 @@ def delivery_target(url: str) -> str:
     parsed = urlparse(url)
     target = parsed.path or "/"
     if parsed.query:
-        target = target + "?" + parsed.query
+        target = f"{target}?{parsed.query}"
     return target
 
 
-def sign_delivery_request(url, body, key, user_agent):
+def sign_delivery_request(url: str, body: str | bytes, key, user_agent: str) -> dict[str, str]:
     """Returns header dict with a valid signature for POSTing body to url."""
     import requests
 

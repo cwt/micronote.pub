@@ -2,7 +2,7 @@ import json
 import logging
 import os
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from active_boxes import activitypub as ap
@@ -25,7 +25,7 @@ from micronote.config import BASE_URL, DB, DB_NAME, EXTRA_INBOXES, ID, ME, USER_
 
 logger = logging.getLogger(__name__)
 
-ACTORS_CACHE = LRUCache(maxsize=256)
+ACTORS_CACHE: LRUCache[str, Any] = LRUCache(maxsize=256)
 
 
 def _json_default(value):
@@ -54,12 +54,10 @@ def _actor_to_meta(actor: ap.BaseActivity, with_inbox=False) -> dict[str, Any]:
         "preferredUsername": actor.preferredUsername,
     }
     if with_inbox:
-        meta.update(
-            {
-                "inbox": actor.inbox,
-                "sharedInbox": actor._data.get("endpoints", {}).get("sharedInbox"),
-            }
-        )
+        meta |= {
+            "inbox": actor.inbox,
+            "sharedInbox": actor._data.get("endpoints", {}).get("sharedInbox"),
+        }
     logger.debug(f"meta={meta}")
 
     return meta
@@ -84,7 +82,7 @@ def ensure_it_is_me(f):
     return wrapper
 
 
-class Box(Enum):
+class Box(StrEnum):
     INBOX = "inbox"
     OUTBOX = "outbox"
     REPLIES = "replies"
@@ -194,7 +192,7 @@ class MicroblogPubBackend(Backend):
         if iri.startswith(BASE_URL):
             is_a_note = False
             if iri.endswith("/activity"):
-                iri = iri.replace("/activity", "")
+                iri = iri.removesuffix("/activity")
                 is_a_note = True
             data = self.DB.activities.find_one({"box": Box.OUTBOX.value, "remote_id": iri})
             if data and data["meta"]["deleted"]:
@@ -449,20 +447,23 @@ class MicroblogPubBackend(Backend):
         obj = _update._data["object"]
 
         update_prefix = "activity.object."
-        update: dict[str, Any] = {"$set": dict(), "$unset": dict()}
-        update["$set"][f"{update_prefix}updated"] = (
-            datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-        )
+        update_set: dict[str, Any] = {
+            f"{update_prefix}updated": (
+                datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+            )
+        }
+        update_unset: dict[str, Any] = {}
         for k, v in obj.items():
-            if k in ["id", "type"]:
+            if k in ("id", "type"):
                 continue
             if v is None:
-                update["$unset"][f"{update_prefix}{k}"] = ""
+                update_unset[f"{update_prefix}{k}"] = ""
             else:
-                update["$set"][f"{update_prefix}{k}"] = v
+                update_set[f"{update_prefix}{k}"] = v
 
-        if len(update["$unset"]) == 0:
-            del (update["$unset"])
+        update: dict[str, Any] = {"$set": update_set}
+        if update_unset:
+            update["$unset"] = update_unset
 
         logger.info(f"updating note from outbox {obj!r} {update}")
         self.DB.activities.update_one({"activity.object.id": obj["id"]}, update)
@@ -599,13 +600,11 @@ def json_feed(path: str) -> dict[str, Any]:
     return {
         "version": "https://jsonfeed.org/version/1",
         "user_comment": (
-            "This is a micronote.pub feed. You can add this to your feed reader using the following URL: "
-            +ID
-            +path
+            f"This is a micronote.pub feed. You can add this to your feed reader using the following URL: {ID}{path}"
         ),
         "title": USERNAME,
         "home_page_url": ID,
-        "feed_url": ID + path,
+        "feed_url": f"{ID}{path}",
         "author": {
             "name": USERNAME,
             "url": ID,
@@ -616,7 +615,7 @@ def json_feed(path: str) -> dict[str, Any]:
 
 
 def build_inbox_json_feed(
-    path: str, request_cursor: str | None=None
+    path: str, request_cursor: str | None = None
 ) -> dict[str, Any]:
     """Build a JSON feed from the inbox activities."""
     data = []
@@ -654,11 +653,11 @@ def build_inbox_json_feed(
         "version": "https://jsonfeed.org/version/1",
         "title": f"{USERNAME}'s stream",
         "home_page_url": ID,
-        "feed_url": ID + path,
+        "feed_url": f"{ID}{path}",
         "items": data,
     }
     if cursor and len(data) == 50:
-        resp["next_url"] = ID + path + "?cursor=" + cursor
+        resp["next_url"] = f"{ID}{path}?cursor={cursor}"
 
     return resp
 
@@ -676,7 +675,7 @@ def embed_collection(total_items, first_page_id):
 def simple_build_ordered_collection(col_name, data):
     return {
         "@context": ap.COLLECTION_CTX,
-        "id": BASE_URL + "/" + col_name,
+        "id": f"{BASE_URL}/{col_name}",
         "totalItems": len(data),
         "type": ap.ActivityType.ORDERED_COLLECTION.value,
         "orderedItems": data,

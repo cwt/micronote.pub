@@ -63,7 +63,6 @@ app.config.update(
 )
 app.jinja_env.trim_blocks = True
 app.jinja_env.lstrip_blocks = True
-app.jinja_env.strip_trailing_newlines = False
 csrf = CSRFProtect(app)
 
 logger = logging.getLogger(__name__)
@@ -113,17 +112,17 @@ def inject_config():
         "meta.undo": False,
     }
 
-    return dict(
-        micronote_version=VERSION,
-        config=config,
-        logged_in=session.get("logged_in", False),
-        followers_count=DB.activities.count_documents(followers_q),
-        following_count=DB.activities.count_documents(following_q),
-        notes_count=notes_count,
-        liked_count=liked_count,
-        with_replies_count=with_replies_count,
-        me=ME,
-    )
+    return {
+        "micronote_version": VERSION,
+        "config": config,
+        "logged_in": session.get("logged_in", False),
+        "followers_count": DB.activities.count_documents(followers_q),
+        "following_count": DB.activities.count_documents(following_q),
+        "notes_count": notes_count,
+        "liked_count": liked_count,
+        "with_replies_count": with_replies_count,
+        "me": ME,
+    }
 
 
 @app.after_request
@@ -145,14 +144,12 @@ def jsonify(**data):
     )
 
 
-def is_api_request():
+def is_api_request() -> bool:
     h = request.headers.get("Accept")
     if h is None:
         return False
-    h = h.split(",")[0]
-    if h in HEADERS or h == "application/json":
-        return True
-    return False
+    media_type = h.split(",")[0]
+    return media_type in HEADERS or media_type == "application/json"
 
 
 @app.errorhandler(ValueError)
@@ -641,8 +638,8 @@ def add_extra_collection(raw_doc: dict[str, Any]) -> dict[str, Any]:
 
 
 def remove_context(activity: dict[str, Any]) -> dict[str, Any]:
-    if "@context" in activity:
-        del activity["@context"]
+    activity = activity.copy()
+    activity.pop("@context", None)
     return activity
 
 
@@ -996,7 +993,7 @@ def tags(tag):
         {
             "box": Box.OUTBOX.value,
             "activity.object.tag.type": "Hashtag",
-            "activity.object.tag.name": "#" + tag,
+            "activity.object.tag.name": f"#{tag}",
         }
     ):
         abort(404)
@@ -1010,7 +1007,7 @@ def tags(tag):
                     "type": ActivityType.CREATE.value,
                     "meta.deleted": False,
                     "activity.object.tag.type": "Hashtag",
-                    "activity.object.tag.name": "#" + tag,
+                    "activity.object.tag.name": f"#{tag}",
                 }
             ),
         )
@@ -1020,7 +1017,7 @@ def tags(tag):
         "meta.undo": False,
         "type": ActivityType.CREATE.value,
         "activity.object.tag.type": "Hashtag",
-        "activity.object.tag.name": "#" + tag,
+        "activity.object.tag.name": f"#{tag}",
     }
     return jsonify(
         **activitypub.build_ordered_collection(

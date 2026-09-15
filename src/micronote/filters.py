@@ -147,12 +147,13 @@ def domain(url):
 
 @blueprint.app_template_filter()
 def url_or_id(d):
-    if isinstance(d, dict):
-        if ("url" in d) and isinstance(d["url"], str):
-            return d["url"]
-        else:
-            return d["id"]
-    return ""
+    match d:
+        case {"url": str(url)}:
+            return url
+        case {"id": id_val}:
+            return id_val
+        case _:
+            return ""
 
 
 @blueprint.app_template_filter()
@@ -160,24 +161,25 @@ def get_url(u):
     current_app.logger.debug(f"GET_URL({u!r})")
     if isinstance(u, list):
         for link in u:
-            if link.get("mimeType") == "text/html":
+            if isinstance(link, dict) and link.get("mimeType") == "text/html":
                 u = link
-    if isinstance(u, dict):
-        return u["href"]
-    elif isinstance(u, str):
-        return u
-    else:
-        return u
+                break
+    match u:
+        case {"href": href}:
+            return href
+        case _:
+            return u
 
 
 @blueprint.app_template_filter()
 def get_actor(url):
     if not url:
         return None
-    if isinstance(url, list):
-        url = url[0]
-    if isinstance(url, dict):
-        url = url.get("id")
+    match url:
+        case [first, *_]:
+            url = first
+        case {"id": actor_id}:
+            url = actor_id
     current_app.logger.debug(f"GET_ACTOR {url}")
     try:
         return get_backend().fetch_iri_sync(url)
@@ -198,7 +200,7 @@ def format_time(val):
             tz_name = f" GMT+{TIMEZONE}"
         else:
             tz_name = f" GMT{TIMEZONE}"
-        return datetime.strftime(dt + tz, "%b %d, %Y, %H:%M:%S") + tz_name
+        return (dt + tz).strftime("%b %d, %Y, %H:%M:%S") + tz_name
     return val
 
 
@@ -226,26 +228,18 @@ def has_actor_type(doc):
     return False
 
 
-def _is_img(filename):
-    filename = filename.lower()
-    if (
-        filename.endswith(".png")
-        or filename.endswith(".jpg")
-        or filename.endswith(".jpeg")
-        or filename.endswith(".gif")
-        or filename.endswith(".svg")
-    ):
-        return True
-    return False
+def _is_img(filename: str) -> bool:
+    return filename.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".svg"))
 
 
 @blueprint.app_template_filter()
 def not_only_imgs(attachment):
     for a in attachment:
-        if isinstance(a, dict) and not _is_img(a["url"]):
-            return True
-        if isinstance(a, str) and not _is_img(a):
-            return True
+        match a:
+            case {"url": url} if not _is_img(url):
+                return True
+            case str() if not _is_img(a):
+                return True
     return False
 
 

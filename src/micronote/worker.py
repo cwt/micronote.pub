@@ -156,7 +156,7 @@ def fetch_og_metadata(job) -> None:
     except (ActivityGoneError, ActivityNotFoundError):
         log.exception(f"dropping activity {iri}, skip OG metedata")
     except requests.exceptions.HTTPError as http_err:
-        if 400 <= http_err.response.status_code < 500:
+        if http_err.response is not None and 400 <= http_err.response.status_code < 500:
             log.exception("bad request, no retry")
             return
         log.exception("failed to fetch OG metadata")

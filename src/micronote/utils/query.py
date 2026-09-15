@@ -7,7 +7,7 @@ def paginated_query(db, q, limit=25, sort_key="_id"):
         return str(doc[sort_key])
 
     # Copy: cursor keys are added below and must not leak into the caller.
-    q = dict(q)
+    q = q.copy()
 
     older_than = newer_than = None
     query_sort = -1

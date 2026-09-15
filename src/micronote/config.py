@@ -3,7 +3,7 @@ import os
 import subprocess
 import threading
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 import requests
 import yaml
@@ -16,7 +16,7 @@ from micronote.utils.key import KEY_DIR, get_key, get_secret_key
 from micronote.utils.media import MediaCache
 
 
-class ThemeStyle(Enum):
+class ThemeStyle(StrEnum):
     LIGHT = "light"
     DARK = "dark"
 
@@ -144,7 +144,7 @@ class _ThreadLocalDB:
         return getattr(create_db_connection().get_database(self._db_name), name)
 
 
-DB_NAME = "{}_{}".format(USERNAME, DOMAIN.replace(".", "_").replace(":", "_"))
+DB_NAME = f"{USERNAME}_{DOMAIN.replace('.', '_').replace(':', '_')}"
 DB = create_db_client(DB_NAME)
 MEDIA_CACHE = MediaCache(create_db_connection, USER_AGENT)
 
@@ -213,12 +213,12 @@ ME = {
     "@context": DEFAULT_CTX,
     "type": "Person",
     "id": ID,
-    "following": ID + "/following",
-    "followers": ID + "/followers",
-    "featured": ID + "/featured",
-    "liked": ID + "/liked",
-    "inbox": ID + "/inbox",
-    "outbox": ID + "/outbox",
+    "following": f"{ID}/following",
+    "followers": f"{ID}/followers",
+    "featured": f"{ID}/featured",
+    "liked": f"{ID}/liked",
+    "inbox": f"{ID}/inbox",
+    "outbox": f"{ID}/outbox",
     "preferredUsername": USERNAME,
     "name": NAME,
     "summary": SUMMARY,

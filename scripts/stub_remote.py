@@ -77,10 +77,10 @@ def person_doc():
     return {
         "type": "Person",
         "id": ACTOR,
-        "inbox": STUB_BASE + "/inbox",
-        "outbox": STUB_BASE + "/outbox",
-        "followers": STUB_BASE + "/followers",
-        "following": STUB_BASE + "/following",
+        "inbox": f"{STUB_BASE}/inbox",
+        "outbox": f"{STUB_BASE}/outbox",
+        "followers": f"{STUB_BASE}/followers",
+        "following": f"{STUB_BASE}/following",
         "preferredUsername": "stubbie",
         "name": "Stubbie Remote",
         "url": ACTOR,
@@ -95,7 +95,7 @@ def person_doc():
 def note_doc():
     return {
         "type": "Note",
-        "id": STUB_BASE + "/note/1",
+        "id": f"{STUB_BASE}/note/1",
         "attributedTo": ACTOR,
         "content": "hello from the stub node",
         "to": [ap.AS_PUBLIC],
@@ -106,7 +106,7 @@ def note_doc():
 def create_doc():
     return {
         "type": "Create",
-        "id": STUB_BASE + "/create/1",
+        "id": f"{STUB_BASE}/create/1",
         "actor": ACTOR,
         "object": note_doc(),
         "to": [ap.AS_PUBLIC],
@@ -117,7 +117,7 @@ def create_doc():
 def follow_doc():
     return {
         "type": "Follow",
-        "id": STUB_BASE + "/follow/1",
+        "id": f"{STUB_BASE}/follow/1",
         "actor": ACTOR,
         "object": PEER,
     }
@@ -126,16 +126,16 @@ def follow_doc():
 def create_app(port, peer):
     global STUB_BASE, ACTOR, KEY_ID, PEER, STUB_KEY
     STUB_BASE = f"http://localhost:{port}"
-    ACTOR = STUB_BASE + "/actor"
-    KEY_ID = ACTOR + "#main-key"
+    ACTOR = f"{STUB_BASE}/actor"
+    KEY_ID = f"{ACTOR}#main-key"
     PEER = peer
     STUB_KEY = load_or_create_key(ACTOR, port)
     ap.use_backend(StubBackend())
 
     store = {
-        STUB_BASE + "/note/1": note_doc(),
-        STUB_BASE + "/create/1": create_doc(),
-        STUB_BASE + "/follow/1": follow_doc(),
+        f"{STUB_BASE}/note/1": note_doc(),
+        f"{STUB_BASE}/create/1": create_doc(),
+        f"{STUB_BASE}/follow/1": follow_doc(),
     }
 
     app = Flask(__name__)

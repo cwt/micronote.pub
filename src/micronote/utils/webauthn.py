@@ -8,7 +8,7 @@ raw bytes Fido2Server hands back).
 import base64
 
 from fido2.server import Fido2Server
-from fido2.webauthn import AttestedCredentialData
+from fido2.webauthn import AttestedCredentialData, PublicKeyCredentialRpEntity
 
 from micronote.config import DB, DOMAIN, USERNAME
 
@@ -22,28 +22,33 @@ def _b64decode(data: str) -> bytes:
 
 
 def _freeze(value):
-    if isinstance(value, bytes):
-        return {"$bytes": _b64encode(value)}
-    if isinstance(value, dict):
-        return {key: _freeze(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_freeze(item) for item in value]
-    return value
+    match value:
+        case bytes():
+            return {"$bytes": _b64encode(value)}
+        case dict():
+            return {key: _freeze(item) for key, item in value.items()}
+        case list() | tuple():
+            return [_freeze(item) for item in value]
+        case _:
+            return value
 
 
 def _thaw(value):
-    if isinstance(value, dict) and set(value) == {"$bytes"}:
-        return _b64decode(value["$bytes"])
-    if isinstance(value, dict):
-        return {key: _thaw(item) for key, item in value.items()}
-    if isinstance(value, list):
-        return [_thaw(item) for item in value]
-    return value
+    match value:
+        case {"$bytes": str(raw)} if len(value) == 1:
+            return _b64decode(raw)
+        case dict():
+            return {key: _thaw(item) for key, item in value.items()}
+        case list():
+            return [_thaw(item) for item in value]
+        case _:
+            return value
 
 
 def get_server() -> Fido2Server:
     rp_id = DOMAIN.split(":")[0]
-    return Fido2Server({"id": rp_id, "name": f"{USERNAME}'s micronote.pub"})
+    rp = PublicKeyCredentialRpEntity(id=rp_id, name=f"{USERNAME}'s micronote.pub")
+    return Fido2Server(rp)
 
 
 def save_state(name: str, state) -> None:

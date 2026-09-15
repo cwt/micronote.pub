@@ -74,25 +74,16 @@ def post_to_inbox(activity: ap.BaseActivity) -> None:
     enqueue_job("finish_post_to_inbox", iri=activity.id)
 
 
-def invalidate_cache(activity):
-    if activity.has_type(ap.ActivityType.LIKE):
+def invalidate_cache(activity) -> None:
+    if activity.has_type([ap.ActivityType.UNDO, ap.ActivityType.DELETE, ap.ActivityType.UPDATE]):
+        DB.cache2.delete_many({})
+    elif activity.has_type([ap.ActivityType.LIKE, ap.ActivityType.ANNOUNCE]):
         if activity.get_object_sync().id.startswith(BASE_URL):
             DB.cache2.delete_many({})
-    elif activity.has_type(ap.ActivityType.ANNOUNCE):
-        if activity.get_object_sync().id.startswith(BASE_URL):
-            DB.cache2.delete_many({})
-    elif activity.has_type(ap.ActivityType.UNDO):
-        DB.cache2.delete_many({})
-    elif activity.has_type(ap.ActivityType.DELETE):
-        # TODO(tsileo): only invalidate if it's a delete of a reply
-        DB.cache2.delete_many({})
-    elif activity.has_type(ap.ActivityType.UPDATE):
-        DB.cache2.delete_many({})
     elif activity.has_type(ap.ActivityType.CREATE):
         note = activity.get_object_sync()
         if not note.inReplyTo or note.inReplyTo.startswith(ID):
             DB.cache2.delete_many({})
-        # FIXME(tsileo): check if it's a reply of a reply
 
 
 def post_to_outbox(activity: ap.BaseActivity) -> str:

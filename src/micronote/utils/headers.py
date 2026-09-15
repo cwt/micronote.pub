@@ -3,7 +3,7 @@ from functools import wraps
 from flask import make_response
 
 
-def add_response_headers(headers=None):
+def add_response_headers(headers: dict[str, str] | None = None):
     """This decorator adds the headers passed in to the response"""
     headers = headers or {}
     def decorator(f):
@@ -11,9 +11,7 @@ def add_response_headers(headers=None):
         @wraps(f)
         def decorated_function(*args, **kwargs):
             resp = make_response(f(*args, **kwargs))
-            h = resp.headers
-            for header, value in headers.items():
-                h[header] = value
+            resp.headers.update(headers)
             return resp
 
         return decorated_function

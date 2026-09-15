@@ -3,11 +3,11 @@ from flask import current_app
 from micronote.config import DB
 
 
-def published_of(doc):
+def published_of(doc: dict) -> str:
     return doc["activity"]["object"].get("published") or ""
 
 
-def _build_thread(data, include_children=True):
+def _build_thread(data: dict, include_children: bool = True) -> list[dict]:
     data["_requested"] = True
     current_app.logger.debug(data)
     root_object = data["activity"].get("object")
@@ -27,7 +27,7 @@ def _build_thread(data, include_children=True):
         )
 
     # Fetch the root replies, and the children
-    replies = [data] + list(DB.activities.find(query))
+    replies = [data, *DB.activities.find(query)]
     # Thread members need a full object; Like/Announce docs referencing it
     # by bare IRI are listed separately on the note page, not in the tree.
     replies = [

@@ -71,11 +71,11 @@ def poll_received(stub_base, match, timeout=30):
 
 
 def is_accept_for(entry, follow_id):
-    body = entry.get("body") or {}
-    if body.get("type") != "Accept":
-        return False
-    obj = body.get("object") or {}
-    return obj.get("id") == follow_id
+    match entry:
+        case {"body": {"type": "Accept", "object": {"id": obj_id}}} if obj_id == follow_id:
+            return True
+        case _:
+            return False
 
 
 def reset_stub(stub_base):
@@ -142,7 +142,10 @@ def case_follow(peer, stub, key):
     stage(stub, follow)
     resp = signed_post(peer + "/inbox", follow, key)
     check("follow accepted", resp.status_code == 201, f"HTTP {resp.status_code}")
-    entry = poll_received(stub, match=lambda e: is_accept_for(e, follow["id"]))
+    def match_accept(e):
+        return is_accept_for(e, follow["id"])
+
+    entry = poll_received(stub, match=match_accept)
     check("Accept delivered", entry is not None)
     if entry:
         check("Accept signature verifies", entry["verified"] is True)
@@ -223,7 +226,10 @@ def case_unsigned_follow(peer, stub, key):
     stage(stub, follow)
     resp = requests.post(peer + "/inbox", json=follow, timeout=15)
     check("fallback accepted", resp.status_code == 201, f"HTTP {resp.status_code}")
-    entry = poll_received(stub, match=lambda e: is_accept_for(e, follow["id"]))
+    def match_accept(e):
+        return is_accept_for(e, follow["id"])
+
+    entry = poll_received(stub, match=match_accept)
     check("Accept delivered", entry is not None)
     if entry:
         check("Accept signature verifies", entry["verified"] is True)

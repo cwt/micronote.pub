@@ -40,24 +40,26 @@ def _get_prop(props, name, default=None):
 
 
 def get_client_id_data(url):
+    fallback = {"logo": None, "name": url, "url": url}
     if not url or not url.startswith(("http://", "https://")):
-        return dict(logo=None, name=url, url=url)
+        return fallback
     try:
         from active_boxes.urlutils import check_url
         check_url(url)
     except Exception:
-        return dict(logo=None, name=url, url=url)
+        return fallback
     data = mf2py.parse(url=url)
-    for item in data["items"]:
-        if "h-x-app" in item["type"] or "h-app" in item["type"]:
+    for item in data.get("items", []):
+        item_types = item.get("type", [])
+        if "h-x-app" in item_types or "h-app" in item_types:
             props = item.get("properties", {})
             current_app.logger.debug(props)
-            return dict(
-                logo=_get_prop(props, "logo"),
-                name=_get_prop(props, "name"),
-                url=_get_prop(props, "url"),
-            )
-    return dict(logo=None, name=url, url=url)
+            return {
+                "logo": _get_prop(props, "logo"),
+                "name": _get_prop(props, "name"),
+                "url": _get_prop(props, "url"),
+            }
+    return fallback
 
 
 def _same_origin(url_a, url_b) -> bool:
@@ -69,17 +71,17 @@ def _same_origin(url_a, url_b) -> bool:
 @blueprint.route("/indieauth/flow", methods=["POST"])
 @login_required
 def indieauth_flow():
-    auth = dict(
-        scope=" ".join(request.form.getlist("scopes")),
-        me=request.form.get("me"),
-        client_id=request.form.get("client_id"),
-        state=request.form.get("state"),
-        redirect_uri=request.form.get("redirect_uri"),
-        response_type=request.form.get("response_type"),
-    )
+    auth = {
+        "scope": " ".join(request.form.getlist("scopes")),
+        "me": request.form.get("me"),
+        "client_id": request.form.get("client_id"),
+        "state": request.form.get("state"),
+        "redirect_uri": request.form.get("redirect_uri"),
+        "response_type": request.form.get("response_type"),
+    }
 
     code = binascii.hexlify(os.urandom(8)).decode("utf-8")
-    auth.update(code=code, verified=False)
+    auth |= {"code": code, "verified": False}
     current_app.logger.debug(auth)
     if not auth["redirect_uri"]:
         abort(400)
@@ -172,9 +174,12 @@ def token_endpoint():
         if not auth:
             abort(403)
         scope = " ".join(auth["scope"])
-        payload = dict(
-            me=me, client_id=client_id, scope=scope, ts=datetime.now().timestamp()
-        )
+        payload = {
+            "me": me,
+            "client_id": client_id,
+            "scope": scope,
+            "ts": datetime.now().timestamp(),
+        }
         token = JWT.dumps(payload)
 
         return build_auth_resp({"me": me, "scope": scope, "access_token": token})
@@ -184,7 +189,7 @@ def token_endpoint():
     if not authorization.startswith("Bearer "):
         abort(403)
     try:
-        payload = JWT.loads(authorization.replace("Bearer ", "", 1))
+        payload = JWT.loads(authorization.removeprefix("Bearer "))
     except BadSignature:
         abort(403)
 

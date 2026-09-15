@@ -4,14 +4,12 @@ from urllib.parse import urlparse
 from flask import redirect, request, session, url_for
 
 
-def safe_next_url(value, fallback):
+def safe_next_url(value: str | None, fallback: str) -> str:
     """Returns value only when it is a relative path on this host."""
     if not value:
         return fallback
     parsed = urlparse(value)
-    if parsed.scheme or parsed.netloc:
-        return fallback
-    if not parsed.path.startswith("/"):
+    if parsed.scheme or parsed.netloc or not parsed.path.startswith("/"):
         return fallback
     return value
 

@@ -1,5 +1,6 @@
 import os
 import time
+from typing import Self
 
 import requests
 from active_boxes.collection import parse_collection_sync as parse_collection
@@ -50,7 +51,7 @@ class Instance:
         """Returns the debug infos (number of items in the inbox/outbox."""
         resp = requests.get(
             f"{self.host_url}/api/debug",
-            headers={**self._auth_headers, "Accept": "application/json"},
+            headers=self._auth_headers | {"Accept": "application/json"},
         )
         resp.raise_for_status()
 
@@ -60,7 +61,7 @@ class Instance:
         """Drops the MongoDB DB."""
         resp = requests.delete(
             f"{self.host_url}/api/debug",
-            headers={**self._auth_headers, "Accept": "application/json"},
+            headers=self._auth_headers | {"Accept": "application/json"},
         )
         resp.raise_for_status()
 
@@ -80,7 +81,7 @@ class Instance:
         time.sleep(self._create_delay / 2)
         return resp.json().get("activity")
 
-    def follow(self, instance: "Instance") -> str:
+    def follow(self, instance: Self) -> str:
         """Follows another instance."""
         # Instance1 follows instance2
         resp = requests.post(
@@ -197,7 +198,7 @@ class Instance:
         """Returns the "stream"'s JSON feed."""
         resp = requests.get(
             f"{self.host_url}/api/stream",
-            headers={**self._auth_headers, "Accept": "application/json"},
+            headers=self._auth_headers | {"Accept": "application/json"},
         )
         resp.raise_for_status()
         return resp.json()

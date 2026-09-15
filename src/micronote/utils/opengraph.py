@@ -12,24 +12,20 @@ from .lookup import lookup
 logger = logging.getLogger(__name__)
 
 
-def links_from_note(note):
-    tags_href = set()
-    for t in note.get("tag", []):
-        h = t.get("href")
-        if h:
-            tags_href.add(h)
+def links_from_note(note: dict) -> set[str]:
+    tags_href = {t["href"] for t in note.get("tag", []) if t.get("href")}
 
-    links = set()
+    links: set[str] = set()
     soup = BeautifulSoup(note["content"], 'html5lib')
     for link in soup.find_all("a"):
         h = link.get("href")
-        if h.startswith("http") and h not in tags_href and is_url_valid(h):
+        if isinstance(h, str) and h.startswith(("http://", "https://")) and h not in tags_href and is_url_valid(h):
             links.add(h)
 
     return links
 
 
-def fetch_og_metadata(user_agent, links):
+def fetch_og_metadata(user_agent: str, links: set[str] | list[str]) -> list[dict]:
     res = []
     for link in links:
         check_url(link)

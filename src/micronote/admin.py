@@ -75,11 +75,12 @@ def admin_lookup():
         if request.form.get("url"):
             data = lookup(request.form.get("url"))
             if data.has_type(ActivityType.ANNOUNCE):
-                meta = dict(
-                    object=data.get_object_sync().to_dict(),
-                    object_actor=data.get_object_sync().get_actor_sync().to_dict(),
-                    actor=data.get_actor_sync().to_dict(),
-                )
+                obj = data.get_object_sync()
+                meta = {
+                    "object": obj.to_dict(),
+                    "object_actor": obj.get_actor_sync().to_dict(),
+                    "actor": data.get_actor_sync().to_dict(),
+                }
 
         current_app.logger.debug(data)
     return render_template(
@@ -126,10 +127,10 @@ def admin_new():
                 remote_object = get_backend().fetch_iri_sync(request.args.get("reply"))
             except (ActivityGoneError, ActivityNotFoundError):
                 abort(404)
-            data = dict(
-                meta={},
-                activity=dict(object=remote_object),
-            )
+            data = {
+                "meta": {},
+                "activity": {"object": remote_object},
+            }
             try:
                 reply = ap.parse_activity(data["activity"]["object"])
             except (BadActivityError, UnexpectedActivityTypeError):
@@ -241,7 +242,7 @@ def admin_login():
         return redirect(url_for(".admin_notifications"))
 
     credentials = stored_credentials()
-    webauthn_enabled = True if credentials else False
+    webauthn_enabled = bool(credentials)
     if request.method == "POST":
         csrf.protect()
         pwd = request.form.get("pass")
