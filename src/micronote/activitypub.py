@@ -185,6 +185,19 @@ class MicroblogPubBackend(Backend):
         if iri == ME["id"]:
             return ME
 
+        if iri == f"{ID}/followers":
+            return {
+                "type": ap.ActivityType.ORDERED_COLLECTION.value,
+                "id": iri,
+                "orderedItems": self.followers(),
+            }
+        if iri == f"{ID}/following":
+            return {
+                "type": ap.ActivityType.ORDERED_COLLECTION.value,
+                "id": iri,
+                "orderedItems": self.following(),
+            }
+
         # Check if the activity is owned by this server
         if iri.startswith(BASE_URL):
             is_a_note = False
