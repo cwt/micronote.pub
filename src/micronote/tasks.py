@@ -94,6 +94,7 @@ def post_to_outbox(activity: ap.BaseActivity) -> str:
     activity.set_id(back.activity_url(obj_id), obj_id)
 
     back.save(Box.OUTBOX, activity)
+    DB.cache2.delete_many({})
     enqueue_job("cache_actor", iri=activity.id)
     enqueue_job("finish_post_to_outbox", iri=activity.id)
     return activity.id
