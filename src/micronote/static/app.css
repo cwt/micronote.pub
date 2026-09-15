@@ -427,6 +427,43 @@ form.action-form {
   margin-top: 50px;
 }
 
+.base-container:has(#new) {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.base-container:has(#new) + .footer {
+  display: none;
+}
+
+.base-container:has(#new) > #container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+#new {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+#new > form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+#new > form > textarea {
+  flex: 1;
+  min-height: 5em;
+}
+
 #admin {
   margin-top: 50px;
 }
