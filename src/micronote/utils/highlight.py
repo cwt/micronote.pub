@@ -22,15 +22,9 @@ def highlight_code_blocks(html: str) -> str:
         if code is None:
             continue
         class_attr: str | list[str] | None = code.get("class") or []
-        classes: list[str] = (
-            [class_attr] if isinstance(class_attr, str) else list(class_attr or [])
-        )
+        classes: list[str] = [class_attr] if isinstance(class_attr, str) else list(class_attr or [])
         lang = next(
-            (
-                cls.removeprefix("language-")
-                for cls in classes
-                if cls.startswith("language-")
-            ),
+            (cls.removeprefix("language-") for cls in classes if cls.startswith("language-")),
             None,
         )
         if not lang:
@@ -39,9 +33,7 @@ def highlight_code_blocks(html: str) -> str:
             lexer = get_lexer_by_name(lang)
         except ClassNotFound:
             continue
-        highlighted = BeautifulSoup(
-            highlight(code.get_text(), lexer, _FORMATTER), "html.parser"
-        )
+        highlighted = BeautifulSoup(highlight(code.get_text(), lexer, _FORMATTER), "html.parser")
         replacement = highlighted.div
         if replacement is None:
             continue
