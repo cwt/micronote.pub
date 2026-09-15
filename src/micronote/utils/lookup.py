@@ -3,23 +3,18 @@ import json
 import active_boxes.activitypub as ap
 import mf2py
 import requests
-from active_boxes.errors import NotAnActivityError
+from active_boxes.errors import ActivityNotFoundError
 from active_boxes.webfinger import get_actor_url_sync
 
 
 def lookup(url: str) -> ap.BaseActivity:
     """Try to find an AP object related to the given URL."""
-    try:
-        if url.startswith("@"):
-            actor_url = get_actor_url_sync(url)
-            if actor_url:
-                return ap.fetch_remote_activity_sync(actor_url)
-    except NotAnActivityError:
-        pass
-    except requests.HTTPError:
-        # Some websites may returns 404, 503 or others when they don't support webfinger, and we're just taking a guess
-        # when performing the lookup.
-        pass
+    if url.startswith("@"):
+        # A handle is not fetchable as-is; it must go through WebFinger.
+        actor_url = get_actor_url_sync(url)
+        if not actor_url:
+            raise ActivityNotFoundError(f"cannot resolve {url}")
+        return ap.fetch_remote_activity_sync(actor_url)
 
     backend = ap.get_backend()
     resp = requests.get(

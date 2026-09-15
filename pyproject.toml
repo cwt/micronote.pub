@@ -27,7 +27,7 @@ dependencies = [
     "bcrypt==5.0.0",
     "mf2py==2.0.1",
     "opengraph @ git+https://github.com/erikriver/opengraph.git",
-    "active-boxes==0.2.3",
+    "active-boxes==0.2.4",
     "pyyaml==6.0.3",
     "pillow==12.3.0",
     "cachetools==7.1.8",

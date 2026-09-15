@@ -71,19 +71,28 @@ def admin():
 def admin_lookup():
     data = None
     meta = None
+    error = None
+    submitted = None
     if request.method == "POST":
-        if request.form.get("url"):
-            data = lookup(request.form.get("url"))
-            if data.has_type(ActivityType.ANNOUNCE):
-                obj = data.get_object_sync()
-                meta = {
-                    "object": obj.to_dict(),
-                    "object_actor": obj.get_actor_sync().to_dict(),
-                    "actor": data.get_actor_sync().to_dict(),
-                }
+        csrf.protect()
+        submitted = request.form.get("url")
+        if submitted:
+            try:
+                data = lookup(submitted)
+            except Exception as exc:
+                current_app.logger.exception(f"lookup failed for {submitted!r}")
+                error = str(exc) or exc.__class__.__name__
+            else:
+                if data.has_type(ActivityType.ANNOUNCE):
+                    obj = data.get_object_sync()
+                    meta = {
+                        "object": obj.to_dict(),
+                        "object_actor": obj.get_actor_sync().to_dict(),
+                        "actor": data.get_actor_sync().to_dict(),
+                    }
 
         current_app.logger.debug(data)
-    return render_template("lookup.html", data=data, meta=meta, url=request.form.get("url"))
+    return render_template("lookup.html", data=data, meta=meta, url=submitted, error=error)
 
 
 @blueprint.route("/admin/thread")

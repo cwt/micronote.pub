@@ -27,6 +27,11 @@
 			<input type="text" name="url" value="{{url or '' }}" placeholder="https://url-of-a-user-or-a-note.tld">
 			<input type="submit" value="Lookup">
 		</form>
+	{% if error %}
+		<div id="lookup-error" style="margin-top: 30px; margin-left: 65px;">
+			<strong>Lookup failed:</strong> {{ error }}
+		</div>
+	{% endif %}
 	{% if data %}
 		{% set data = data.to_dict() %}
 		<div id="lookup-result" style="margin-top: 30px;">
