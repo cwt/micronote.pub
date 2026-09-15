@@ -1,0 +1,57 @@
+# Fedora 44 variant of the Dockerfile
+# Build with: docker build -f Dockerfile.f44 -t micronote:f44 .
+FROM fedora:44
+
+# Set labels for image metadata
+LABEL description="micronote.pub - Self-hosted, single-user, ActivityPub-powered microblog"
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV FLASK_APP=micronote.app
+
+# Install runtime dependencies (only what's needed to run the application)
+RUN dnf update -y \
+ && dnf upgrade -y \
+ && dnf install -y \
+    python3 \
+    python3-pip \
+    git \
+    sqlite-libs \
+    libicu \
+    libjpeg-turbo \
+    libpng \
+    freetype \
+    lcms2 \
+    openjpeg \
+    libwebp \
+    libtiff \
+ && dnf clean all
+
+# Create app directory
+WORKDIR /app
+
+# Create a virtual environment and activate it
+RUN python3 -m venv .venv
+ENV PATH="/app/.venv/bin:$PATH"
+
+# Install Python dependencies first (cached unless pyproject changes)
+COPY pyproject.toml README.md .
+COPY src/ src/
+RUN pip install --no-cache-dir .
+
+COPY . .
+
+VOLUME /app/config
+VOLUME /app/data
+
+# Create a non-root user for security
+RUN useradd -r -s /bin/sh -u 1000 -d /app -M appuser
+RUN chown -R appuser:appuser /app
+USER appuser
+
+# Expose port for the application
+EXPOSE 5005/tcp
+
+# Default command runs DB index setup, then gunicorn (see run.sh)
+CMD ["./run.sh"]

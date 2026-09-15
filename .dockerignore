@@ -1,3 +1,5 @@
 __pycache__/
 data/
 tests/
+node_modules/
+.html-render/
