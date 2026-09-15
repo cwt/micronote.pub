@@ -91,9 +91,7 @@ def process_new_activity(job) -> None:
                         break
 
         elif activity.has_type(ap.ActivityType.DELETE):
-            note = DB.activities.find_one(
-                {"activity.object.id": activity.get_object_sync().id}
-            )
+            note = DB.activities.find_one({"activity.object.id": activity.get_object_sync().id})
             if note and note["meta"].get("forwarded", False):
                 # If the activity was originally forwarded, forward the delete too
                 should_forward = True
@@ -148,9 +146,7 @@ def fetch_og_metadata(job) -> None:
                 MEDIA_CACHE.cache_og_image(og["image"])
 
             log.debug(f"OG metadata {og_metadata!r}")
-            DB.activities.update_one(
-                {"remote_id": iri}, {"$set": {"meta.og_metadata": og_metadata}}
-            )
+            DB.activities.update_one({"remote_id": iri}, {"$set": {"meta.og_metadata": og_metadata}})
 
         log.info(f"OG metadata fetched for {iri}")
     except (ActivityGoneError, ActivityNotFoundError):
@@ -214,25 +210,13 @@ def cache_actor(job) -> None:
                 # It's a new following, cache the "object" (which is the actor we follow)
                 DB.activities.update_one(
                     {"remote_id": iri},
-                    {
-                        "$set": {
-                            "meta.object": activitypub._actor_to_meta(
-                                activity.get_object_sync()
-                            )
-                        }
-                    },
+                    {"$set": {"meta.object": activitypub._actor_to_meta(activity.get_object_sync())}},
                 )
 
         # Cache the actor info
         DB.activities.update_one(
             {"remote_id": iri},
-            {
-                "$set": {
-                    "meta.actor": activitypub._actor_to_meta(
-                        actor, cache_actor_with_inbox
-                    )
-                }
-            },
+            {"$set": {"meta.actor": activitypub._actor_to_meta(actor, cache_actor_with_inbox)}},
         )
 
         log.info(f"actor cached for {iri}")
@@ -277,10 +261,7 @@ def cache_attachments(job) -> None:
                     log.warning(f"skipping attachment without url in {iri}")
                     continue
                 media_type = attachment.get("mediaType") or ""
-                if (
-                    media_type.startswith("image/")
-                    or attachment.get("type") == ap.ActivityType.IMAGE.value
-                ):
+                if media_type.startswith("image/") or attachment.get("type") == ap.ActivityType.IMAGE.value:
                     try:
                         MEDIA_CACHE.cache(url, Kind.ATTACHMENT)
                     except ValueError:
@@ -459,12 +440,14 @@ def run_job(doc: dict) -> None:
             next_run = datetime.now(UTC) + timedelta(seconds=retry_delay(attempts))
             DB.jobs.update_one(
                 {"_id": doc["_id"]},
-                {"$set": {
-                    "status": STATUS_PENDING,
-                    "attempts": attempts,
-                    "next_run": next_run,
-                    "error": repr(err),
-                }},
+                {
+                    "$set": {
+                        "status": STATUS_PENDING,
+                        "attempts": attempts,
+                        "next_run": next_run,
+                        "error": repr(err),
+                    }
+                },
             )
     else:
         DB.jobs.delete_one({"_id": doc["_id"]})
@@ -477,9 +460,7 @@ def drain_jobs(limit: int = 100, max_passes: int = 100) -> int:
     for _ in range(max_passes):
         claimed_any = False
         now = datetime.now(UTC)
-        due = DB.jobs.find(
-            {"status": STATUS_PENDING, "next_run": {"$lte": now}}, limit=limit
-        ).sort("next_run", 1)
+        due = DB.jobs.find({"status": STATUS_PENDING, "next_run": {"$lte": now}}, limit=limit).sort("next_run", 1)
         for doc in due:
             claimed = DB.jobs.find_one_and_update(
                 {"_id": doc["_id"], "status": STATUS_PENDING},
@@ -501,9 +482,7 @@ def load_resume_token() -> str | None:
 
 
 def save_resume_token(token: str) -> None:
-    DB.worker_state.update_one(
-        {"_id": RESUME_TOKEN_ID}, {"$set": {"token": token}}, upsert=True
-    )
+    DB.worker_state.update_one({"_id": RESUME_TOKEN_ID}, {"$set": {"token": token}}, upsert=True)
 
 
 def ensure_jobs_table() -> None:

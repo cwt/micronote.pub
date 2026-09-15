@@ -30,14 +30,11 @@ def _webp_filename(filename: str) -> str:
 
 def load(url, user_agent):
     """Initializes a decoded `PIL.Image` from the URL."""
-    with requests.get(url, stream=True,
-                      headers={"User-Agent": user_agent}) as resp:
+    with requests.get(url, stream=True, headers={"User-Agent": user_agent}) as resp:
         resp.raise_for_status()
-        content_type = resp.headers.get('content-type') or ''
-        if not content_type.startswith('image/'):
-            raise ValueError(
-                f"bad content-type {resp.headers.get('content-type')}"
-            )
+        content_type = resp.headers.get("content-type") or ""
+        if not content_type.startswith("image/"):
+            raise ValueError(f"bad content-type {resp.headers.get('content-type')}")
 
         resp.raw.decode_content = True
         raw = resp.raw.read(MAX_REMOTE_ATTACHMENT_BYTES + 1)
@@ -111,11 +108,13 @@ class MediaCache:
         )
 
     def get_file(self, url: str, size: int | None, kind: Kind) -> GridOut | None:
-        found = self._bucket.find({
-            "metadata.url": url,
-            "metadata.size": size,
-            "metadata.kind": kind.value,
-        })
+        found = self._bucket.find(
+            {
+                "metadata.url": url,
+                "metadata.size": size,
+                "metadata.kind": kind.value,
+            }
+        )
         for grid_out in found:
             return grid_out
         return None
@@ -155,9 +154,7 @@ class MediaCache:
     def _cache_generic_attachment(self, url: str) -> None:
         # The attachment is not an image, download and save it anyway
         # (capped: remote hosts are untrusted, never buffer unbounded bytes).
-        with requests.get(
-            url, stream=True, headers={"User-Agent": self.user_agent}
-        ) as resp:
+        with requests.get(url, stream=True, headers={"User-Agent": self.user_agent}) as resp:
             resp.raise_for_status()
             with BytesIO() as buf, GzipFile(mode="wb", fileobj=buf) as gzipped:
                 downloaded = 0
@@ -186,7 +183,7 @@ class MediaCache:
 
     def save_upload(self, obuf: BytesIO, filename: str, max_size: tuple[int, int]) -> StoredUpload:
         mtype = mimetypes.guess_type(filename)[0]
-        if mtype and mtype.startswith('image'):
+        if mtype and mtype.startswith("image"):
             # Re-encoding as WebP drops EXIF (after applying orientation),
             # so no separate EXIF-strip step is needed. The stored filename
             # takes a .webp extension to match the stored bytes.

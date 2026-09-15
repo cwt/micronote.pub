@@ -31,14 +31,16 @@ class Instance:
     def _do_req(self, url):
         """Used to parse collection."""
         url = url.replace(self.docker_url, self.host_url)
-        resp = requests.get(url, headers={'Accept': 'application/activity+json'})
+        resp = requests.get(url, headers={"Accept": "application/activity+json"})
         resp.raise_for_status()
         return resp.json()
 
     def _parse_collection(self, payload=None, url=None):
         """Parses a collection (go through all the pages)."""
         return parse_collection(
-            url=url, payload=payload, fetcher=self._do_req,
+            url=url,
+            payload=payload,
+            fetcher=self._do_req,
         )
 
     def ping(self):
@@ -101,9 +103,7 @@ class Instance:
         if reply:
             params["reply"] = reply
 
-        resp = requests.post(
-            f"{self.host_url}/api/new_note", json=params, headers=self._auth_headers
-        )
+        resp = requests.post(f"{self.host_url}/api/new_note", json=params, headers=self._auth_headers)
         assert resp.status_code == 201
 
         time.sleep(self._create_delay)
@@ -111,9 +111,7 @@ class Instance:
 
     def boost(self, oid: str) -> str:
         """Creates an Announce activity."""
-        resp = requests.post(
-            f"{self.host_url}/api/boost", json={"id": oid}, headers=self._auth_headers
-        )
+        resp = requests.post(f"{self.host_url}/api/boost", json={"id": oid}, headers=self._auth_headers)
         assert resp.status_code == 201
 
         time.sleep(self._create_delay)
@@ -121,9 +119,7 @@ class Instance:
 
     def like(self, oid: str) -> str:
         """Creates a Like activity."""
-        resp = requests.post(
-            f"{self.host_url}/api/like", json={"id": oid}, headers=self._auth_headers
-        )
+        resp = requests.post(f"{self.host_url}/api/like", json={"id": oid}, headers=self._auth_headers)
         assert resp.status_code == 201
 
         time.sleep(self._create_delay)
@@ -143,9 +139,7 @@ class Instance:
 
     def undo(self, oid: str) -> str:
         """Creates a Undo activity."""
-        resp = requests.post(
-            f"{self.host_url}/api/undo", json={"id": oid}, headers=self._auth_headers
-        )
+        resp = requests.post(f"{self.host_url}/api/undo", json={"id": oid}, headers=self._auth_headers)
         assert resp.status_code == 201
 
         # We need to wait for the Follow/Accept dance
@@ -206,14 +200,10 @@ class Instance:
 
 def _instances() -> tuple[Instance, Instance]:
     """Initializes the client for the two test instances."""
-    instance1 = Instance(
-        "instance1", "http://localhost:5006", "http://instance1_web_1:5005"
-    )
+    instance1 = Instance("instance1", "http://localhost:5006", "http://instance1_web_1:5005")
     instance1.ping()
 
-    instance2 = Instance(
-        "instance2", "http://localhost:5007", "http://instance2_web_1:5005"
-    )
+    instance2 = Instance("instance2", "http://localhost:5007", "http://instance2_web_1:5005")
     instance2.ping()
 
     # Return the DB
@@ -282,9 +272,7 @@ def test_post_content():
 
     create_id = instance1.new_note("hello")
     instance2_debug = instance2.debug()
-    assert (
-        instance2_debug["inbox"] == 3
-    )  # An Follow, Accept and Create activity should be there
+    assert instance2_debug["inbox"] == 3  # An Follow, Accept and Create activity should be there
     assert instance2_debug["outbox"] == 2  # We've sent a Accept and a Follow  activity
 
     # Ensure the post is visible in instance2's stream
@@ -307,12 +295,8 @@ def test_block_and_post_content():
 
     instance1.new_note("hello")
     instance2_debug = instance2.debug()
-    assert (
-        instance2_debug["inbox"] == 2
-    )  # An Follow, Accept activity should be there, Create should have been dropped
-    assert (
-        instance2_debug["outbox"] == 3
-    )  # We've sent a Accept and a Follow  activity + the Block activity
+    assert instance2_debug["inbox"] == 2  # An Follow, Accept activity should be there, Create should have been dropped
+    assert instance2_debug["outbox"] == 3  # We've sent a Accept and a Follow  activity + the Block activity
 
     # Ensure the post is not visible in instance2's stream
     inbox_stream = instance2.stream_jsonfeed()
@@ -331,9 +315,7 @@ def test_post_content_and_delete():
 
     create_id = instance1.new_note("hello")
     instance2_debug = instance2.debug()
-    assert (
-        instance2_debug["inbox"] == 3
-    )  # An Follow, Accept and Create activity should be there
+    assert instance2_debug["inbox"] == 3  # An Follow, Accept and Create activity should be there
     assert instance2_debug["outbox"] == 2  # We've sent a Accept and a Follow  activity
 
     # Ensure the post is visible in instance2's stream
@@ -343,9 +325,7 @@ def test_post_content_and_delete():
 
     instance1.delete(f"{create_id}/activity")
     instance2_debug = instance2.debug()
-    assert (
-        instance2_debug["inbox"] == 4
-    )  # An Follow, Accept and Create and Delete activity should be there
+    assert instance2_debug["inbox"] == 4  # An Follow, Accept and Create and Delete activity should be there
     assert instance2_debug["outbox"] == 2  # We've sent a Accept and a Follow  activity
 
     # Ensure the post has been delete from instance2's stream
@@ -501,9 +481,7 @@ def test_post_content_and_post_reply() -> None:
 
     instance1_create_id = instance1.new_note("hello")
     instance2_debug = instance2.debug()
-    assert (
-        instance2_debug["inbox"] == 3
-    )  # An Follow, Accept and Create activity should be there
+    assert instance2_debug["inbox"] == 3  # An Follow, Accept and Create activity should be there
     assert instance2_debug["outbox"] == 2  # We've sent a Accept and a Follow  activity
 
     # Ensure the post is visible in instance2's stream
@@ -516,20 +494,12 @@ def test_post_content_and_post_reply() -> None:
         reply=f"{instance1_create_id}/activity",
     )
     instance2_debug = instance2.debug()
-    assert (
-        instance2_debug["inbox"] == 3
-    )  # An Follow, Accept and Create activity should be there
-    assert (
-        instance2_debug["outbox"] == 3
-    )  # We've sent a Accept and a Follow and a Create  activity
+    assert instance2_debug["inbox"] == 3  # An Follow, Accept and Create activity should be there
+    assert instance2_debug["outbox"] == 3  # We've sent a Accept and a Follow and a Create  activity
 
     instance1_debug = instance1.debug()
-    assert (
-        instance1_debug["inbox"] == 3
-    )  # An Follow, Accept and Create activity should be there
-    assert (
-        instance1_debug["outbox"] == 3
-    )  # We've sent a Accept and a Follow and a Create  activity
+    assert instance1_debug["inbox"] == 3  # An Follow, Accept and Create activity should be there
+    assert instance1_debug["outbox"] == 3  # We've sent a Accept and a Follow and a Create  activity
 
     instance1_inbox_stream = instance1.stream_jsonfeed()
     assert len(instance1_inbox_stream["items"]) == 1
@@ -555,9 +525,7 @@ def test_post_content_and_post_reply_and_delete() -> None:
 
     instance1_create_id = instance1.new_note("hello")
     instance2_debug = instance2.debug()
-    assert (
-        instance2_debug["inbox"] == 3
-    )  # An Follow, Accept and Create activity should be there
+    assert instance2_debug["inbox"] == 3  # An Follow, Accept and Create activity should be there
     assert instance2_debug["outbox"] == 2  # We've sent a Accept and a Follow  activity
 
     # Ensure the post is visible in instance2's stream
@@ -570,20 +538,12 @@ def test_post_content_and_post_reply_and_delete() -> None:
         reply=f"{instance1_create_id}/activity",
     )
     instance2_debug = instance2.debug()
-    assert (
-        instance2_debug["inbox"] == 3
-    )  # An Follow, Accept and Create activity should be there
-    assert (
-        instance2_debug["outbox"] == 3
-    )  # We've sent a Accept and a Follow and a Create  activity
+    assert instance2_debug["inbox"] == 3  # An Follow, Accept and Create activity should be there
+    assert instance2_debug["outbox"] == 3  # We've sent a Accept and a Follow and a Create  activity
 
     instance1_debug = instance1.debug()
-    assert (
-        instance1_debug["inbox"] == 3
-    )  # An Follow, Accept and Create activity should be there
-    assert (
-        instance1_debug["outbox"] == 3
-    )  # We've sent a Accept and a Follow and a Create  activity
+    assert instance1_debug["inbox"] == 3  # An Follow, Accept and Create activity should be there
+    assert instance1_debug["outbox"] == 3  # We've sent a Accept and a Follow and a Create  activity
 
     instance1_inbox_stream = instance1.stream_jsonfeed()
     assert len(instance1_inbox_stream["items"]) == 1
@@ -596,12 +556,8 @@ def test_post_content_and_post_reply_and_delete() -> None:
     instance2.delete(f"{instance2_create_id}/activity")
 
     instance1_debug = instance1.debug()
-    assert (
-        instance1_debug["inbox"] == 4
-    )  # An Follow, Accept and Create and Delete activity should be there
-    assert (
-        instance1_debug["outbox"] == 3
-    )  # We've sent a Accept and a Follow and a Create  activity
+    assert instance1_debug["inbox"] == 4  # An Follow, Accept and Create and Delete activity should be there
+    assert instance1_debug["outbox"] == 3  # We've sent a Accept and a Follow and a Create  activity
 
     instance1_note = instance1.outbox_get(f"{instance1_create_id}/activity")
     assert "replies" in instance1_note

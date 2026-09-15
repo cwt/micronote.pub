@@ -52,9 +52,7 @@ def get_server() -> Fido2Server:
 
 
 def save_state(name: str, state) -> None:
-    DB.webauthn_state.update_one(
-        {"_id": name}, {"$set": {"state": _freeze(state)}}, upsert=True
-    )
+    DB.webauthn_state.update_one({"_id": name}, {"$set": {"state": _freeze(state)}}, upsert=True)
 
 
 def load_state(name: str):
@@ -68,19 +66,18 @@ def clear_state(name: str) -> None:
 
 def stored_credentials():
     """Rebuilds AttestedCredentialData objects for every registered key."""
-    return [
-        AttestedCredentialData(_b64decode(doc["attested"]))
-        for doc in DB.webauthn.find()
-    ]
+    return [AttestedCredentialData(_b64decode(doc["attested"])) for doc in DB.webauthn.find()]
 
 
 def save_credential(auth_data, name: str = "key") -> None:
-    DB.webauthn.insert_one({
-        "name": name,
-        "credential_id": _b64encode(auth_data.credential_data.credential_id),
-        "attested": _b64encode(bytes(auth_data.credential_data)),
-        "sign_count": auth_data.counter,
-    })
+    DB.webauthn.insert_one(
+        {
+            "name": name,
+            "credential_id": _b64encode(auth_data.credential_data.credential_id),
+            "attested": _b64encode(bytes(auth_data.credential_data)),
+            "sign_count": auth_data.counter,
+        }
+    )
 
 
 def update_sign_count(credential_id: bytes, sign_count: int) -> None:

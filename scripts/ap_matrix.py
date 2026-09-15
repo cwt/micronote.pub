@@ -11,6 +11,7 @@ running worker.py (the driver polls for async completion).
 Run:  python scripts/ap_matrix.py [follow|create|like|unsigned-follow|all]
       [--peer http://localhost:5005] [--stub http://localhost:5006]
 """
+
 import argparse
 import json
 import os
@@ -99,10 +100,16 @@ def admin_key():
 
 
 def active_stub_follows(stub_actor):
-    return list(DB.activities.find({
-        "box": "inbox", "type": "Follow", "meta.undo": False,
-        "activity.actor": stub_actor,
-    }))
+    return list(
+        DB.activities.find(
+            {
+                "box": "inbox",
+                "type": "Follow",
+                "meta.undo": False,
+                "activity.actor": stub_actor,
+            }
+        )
+    )
 
 
 def undo_active_follows(peer, stub):
@@ -142,6 +149,7 @@ def case_follow(peer, stub, key):
     stage(stub, follow)
     resp = signed_post(f"{peer}/inbox", follow, key)
     check("follow accepted", resp.status_code == 201, f"HTTP {resp.status_code}")
+
     def match_accept(e):
         return is_accept_for(e, follow["id"])
 
@@ -226,6 +234,7 @@ def case_unsigned_follow(peer, stub, key):
     stage(stub, follow)
     resp = requests.post(f"{peer}/inbox", json=follow, timeout=15)
     check("fallback accepted", resp.status_code == 201, f"HTTP {resp.status_code}")
+
     def match_accept(e):
         return is_accept_for(e, follow["id"])
 

@@ -6,6 +6,7 @@ from flask import make_response
 def add_response_headers(headers: dict[str, str] | None = None):
     """This decorator adds the headers passed in to the response"""
     headers = headers or {}
+
     def decorator(f):
 
         @wraps(f)

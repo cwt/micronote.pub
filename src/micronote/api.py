@@ -30,7 +30,7 @@ from micronote.config import (
 from micronote.utils.emoji import flexmoji
 from micronote.utils.login import login_required
 
-blueprint = flask.Blueprint('api', __name__, template_folder='templates')
+blueprint = flask.Blueprint("api", __name__, template_folder="templates")
 csrf = CSRFProtect(current_app)
 back = activitypub.MicroblogPubBackend()
 ap.use_backend(back)
@@ -85,7 +85,7 @@ def _user_api_arg(key: str, **kwargs):
 
     if not oid:
         if "default" in kwargs:
-            current_app.logger.info(f'{key}={kwargs.get("default")}')
+            current_app.logger.info(f"{key}={kwargs.get('default')}")
             return kwargs.get("default")
 
         raise ValueError(f"missing {key}")
@@ -94,8 +94,9 @@ def _user_api_arg(key: str, **kwargs):
     return oid
 
 
-def _user_api_get_note(from_outbox: bool=False):
+def _user_api_get_note(from_outbox: bool = False):
     from active_boxes.errors import UnexpectedActivityTypeError
+
     oid = _user_api_arg("id")
     current_app.logger.info(f"fetching {oid}")
     raw = get_backend().fetch_iri_sync(oid)
@@ -105,13 +106,9 @@ def _user_api_get_note(from_outbox: bool=False):
         try:
             note = ap.parse_activity(raw, expected=ActivityType.VIDEO)
         except UnexpectedActivityTypeError as err:
-            raise ActivityNotFoundError(
-                "Expected Note or Video ActivityType, but got something else"
-            ) from err
+            raise ActivityNotFoundError("Expected Note or Video ActivityType, but got something else") from err
     if from_outbox and not note.id.startswith(ID):
-        raise NotFromOutboxError(
-            f"cannot load {note.id}, id must be owned by the server"
-        )
+        raise NotFromOutboxError(f"cannot load {note.id}, id must be owned by the server")
 
     return note
 
@@ -297,9 +294,7 @@ def api_new_note():
 @api_required
 def api_stream():
     return Response(
-        response=activitypub.json_dumps(
-            activitypub.build_inbox_json_feed("/api/stream", request.args.get("cursor"))
-        ),
+        response=activitypub.json_dumps(activitypub.build_inbox_json_feed("/api/stream", request.args.get("cursor"))),
         headers={"Content-Type": "application/json"},
     )
 

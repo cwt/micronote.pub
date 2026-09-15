@@ -45,6 +45,7 @@ def enqueue_job(job_type, iri=None, payload=None, to=None, also_cache_attachment
     log.info(f"enqueued {job_type} iri={iri}")
     if TASK_EAGER:
         from micronote.worker import drain_jobs
+
         drain_jobs()
     return job
 
@@ -53,9 +54,7 @@ def post_to_inbox(activity: ap.BaseActivity) -> None:
     # Check for Block activity
     actor = activity.get_actor_sync()
     if back.outbox_is_blocked(MY_PERSON, actor.id):
-        log.info(
-            f"actor {actor!r} is blocked, dropping the received activity {activity!r}"
-        )
+        log.info(f"actor {actor!r} is blocked, dropping the received activity {activity!r}")
         return
 
     if back.inbox_check_duplicate(MY_PERSON, activity.id):
@@ -63,9 +62,7 @@ def post_to_inbox(activity: ap.BaseActivity) -> None:
         log.info(f"received duplicate activity {activity!r}, dropping it")
         return
 
-    if activity.has_type(ap.ActivityType.FOLLOW) and back.inbox_has_active_follower(
-        MY_PERSON, actor.id
-    ):
+    if activity.has_type(ap.ActivityType.FOLLOW) and back.inbox_has_active_follower(MY_PERSON, actor.id):
         log.info(f"actor {actor.id} already follows, dropping duplicate Follow {activity!r}")
         return
 

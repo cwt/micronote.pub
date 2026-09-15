@@ -3,15 +3,13 @@ from flask import Response
 
 from micronote import activitypub
 
-blueprint = flask.Blueprint('feeds', __name__, template_folder='templates')
+blueprint = flask.Blueprint("feeds", __name__, template_folder="templates")
 
 
 @blueprint.route("/feed.json")
 def json_feed():
     return Response(
-        response=activitypub.json_dumps(
-            activitypub.json_feed("/feed.json")
-        ),
+        response=activitypub.json_dumps(activitypub.json_feed("/feed.json")),
         headers={"Content-Type": "application/json"},
     )
 

@@ -1,6 +1,5 @@
 """Removes duplicate FOLLOW activities. Run explicitly: python dedup.py"""
 
-
 from active_boxes.activitypub import ActivityType
 
 from micronote.activitypub import Box

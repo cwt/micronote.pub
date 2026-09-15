@@ -16,7 +16,7 @@ def links_from_note(note: dict) -> set[str]:
     tags_href = {t["href"] for t in note.get("tag", []) if t.get("href")}
 
     links: set[str] = set()
-    soup = BeautifulSoup(note["content"], 'html5lib')
+    soup = BeautifulSoup(note["content"], "html5lib")
     for link in soup.find_all("a"):
         h = link.get("href")
         if isinstance(h, str) and h.startswith(("http://", "https://")) and h not in tags_href and is_url_valid(h):
@@ -44,12 +44,10 @@ def fetch_og_metadata(user_agent: str, links: set[str] | list[str]) -> list[dict
             logger.debug(f"skipping {link}")
             continue
 
-        r.encoding = 'UTF-8'
+        r.encoding = "UTF-8"
         html = r.text
         try:
-            data = dict(opengraph.OpenGraph(
-                html=BeautifulSoup(html, 'html5lib')
-            ))
+            data = dict(opengraph.OpenGraph(html=BeautifulSoup(html, "html5lib")))
         except Exception:
             logger.exception(f"failed to parse {link}")
             continue

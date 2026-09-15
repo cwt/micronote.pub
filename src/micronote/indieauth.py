@@ -13,7 +13,7 @@ from neosqlite import DESCENDING
 from micronote.config import DB, ID, JWT
 from micronote.utils.login import login_required
 
-blueprint = flask.Blueprint('indieauth', __name__, template_folder='templates')
+blueprint = flask.Blueprint("indieauth", __name__, template_folder="templates")
 
 
 def build_auth_resp(payload):
@@ -45,6 +45,7 @@ def get_client_id_data(url):
         return fallback
     try:
         from active_boxes.urlutils import check_url
+
         check_url(url)
     except Exception:
         return fallback
@@ -96,11 +97,11 @@ def indieauth_flow():
 
     DB.indieauth.insert_one(auth)
 
-    red = f'{auth["redirect_uri"]}?code={code}&state={auth["state"]}&me={auth["me"]}'
+    red = f"{auth['redirect_uri']}?code={code}&state={auth['state']}&me={auth['me']}"
     return redirect(red)
 
 
-@blueprint.route('/indieauth', methods=['GET', 'POST'])
+@blueprint.route("/indieauth", methods=["GET", "POST"])
 def indieauth_endpoint():
     if request.method == "GET":
         if not session.get("logged_in"):

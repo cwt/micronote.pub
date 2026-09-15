@@ -10,6 +10,7 @@ identical to the sent bytes.
 The (request-target) is always the origin-form path: full URLs there
 are proxy-form and strict verifiers reject them.
 """
+
 from urllib.parse import urlparse
 
 from active_boxes.httpsig import sign_request_sync

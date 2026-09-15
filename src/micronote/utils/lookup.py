@@ -10,7 +10,7 @@ from active_boxes.webfinger import get_actor_url_sync
 def lookup(url: str) -> ap.BaseActivity:
     """Try to find an AP object related to the given URL."""
     try:
-        if url.startswith('@'):
+        if url.startswith("@"):
             actor_url = get_actor_url_sync(url)
             if actor_url:
                 return ap.fetch_remote_activity_sync(actor_url)

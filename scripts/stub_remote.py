@@ -10,6 +10,7 @@ Run:  python scripts/stub_remote.py [--port 5006] [--peer http://localhost:5005]
 The RSA key persists in scripts/.stub_key_<port>.pem so the driver
 (scripts/ap_matrix.py) can sign with the same key across restarts.
 """
+
 import argparse
 import asyncio
 import json
@@ -34,9 +35,7 @@ RECEIVED: list[dict] = []
 
 
 def key_file_for(port: int) -> str:
-    return os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), f".stub_key_{port}.pem"
-    )
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), f".stub_key_{port}.pem")
 
 
 class StubBackend(Backend):
@@ -178,11 +177,13 @@ def create_app(port, peer):
             payload = json.loads(body)
         except ValueError:
             payload = None
-        RECEIVED.append({
-            "headers": {key: value for key, value in headers.items() if key != "authorization"},
-            "body": payload,
-            "verified": verified,
-        })
+        RECEIVED.append(
+            {
+                "headers": {key: value for key, value in headers.items() if key != "authorization"},
+                "body": payload,
+                "verified": verified,
+            }
+        )
         log.info(f"stub inbox got {payload.get('type') if payload else None} verified={verified}")
         return Response(status=202)
 

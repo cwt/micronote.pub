@@ -16,7 +16,7 @@ from micronote.config import CDN_URL, ID, MEDIA_CACHE, TIMEZONE
 from micronote.utils.emoji import flexmoji
 from micronote.utils.media import Kind
 
-blueprint = flask.Blueprint('filters', __name__, template_folder='templates')
+blueprint = flask.Blueprint("filters", __name__, template_folder="templates")
 
 _GRIDFS_CACHE: dict[tuple[Kind, str, int | None], str] = {}
 

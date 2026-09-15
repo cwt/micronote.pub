@@ -91,14 +91,9 @@ THEME_STYLE = ThemeStyle(theme_conf.get("style", DEFAULT_THEME_STYLE))
 THEME_COLOR = theme_conf.get("color", DEFAULT_THEME_PRIMARY_COLOR[THEME_STYLE])
 TIMEZONE = int(conf.get("timezone_hours", 0))
 CDN_URL = conf.get("cdn_url", "")
-IMAGE_MAX_SIZE = (
-    conf.get("image_max_size", {}).get("width", 1920),
-    conf.get("image_max_size", {}).get("height", 1920)
-)
+IMAGE_MAX_SIZE = (conf.get("image_max_size", {}).get("width", 1920), conf.get("image_max_size", {}).get("height", 1920))
 
-USER_AGENT = (
-    f"{requests.utils.default_user_agent()} (micronote.pub/{VERSION}; +{BASE_URL})"
-)
+USER_AGENT = f"{requests.utils.default_user_agent()} (micronote.pub/{VERSION}; +{BASE_URL})"
 
 
 DATA_DIR = Path(os.getenv("MICRONOTE_DATA_DIR", os.path.abspath("data")))
@@ -154,10 +149,12 @@ MEDIA_CACHE = MediaCache(create_db_connection, USER_AGENT)
 def create_indexes():
     DB.activities.create_index([("remote_id", ASCENDING)])
     DB.activities.create_index([("activity.object.id", ASCENDING)])
-    DB.activities.create_index([
-        ("activity.object.id", ASCENDING),
-        ("meta.deleted", ASCENDING),
-    ])
+    DB.activities.create_index(
+        [
+            ("activity.object.id", ASCENDING),
+            ("meta.deleted", ASCENDING),
+        ]
+    )
     DB.cache2.create_index([("path", ASCENDING), ("type", ASCENDING), ("arg", ASCENDING)])
     DB.cache2.create_index("date", expireAfterSeconds=3600 * 12)
 
@@ -204,9 +201,7 @@ JWT = URLSafeTimedSerializer(JWT_SECRET)
 
 
 def _admin_jwt_token() -> str:
-    return JWT.dumps(
-        {"me": "ADMIN", "ts": datetime.now(UTC).timestamp()}
-    )
+    return JWT.dumps({"me": "ADMIN", "ts": datetime.now(UTC).timestamp()})
 
 
 ADMIN_API_KEY = get_secret_key("admin_api_key", _admin_jwt_token)

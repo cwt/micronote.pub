@@ -11,9 +11,7 @@ def paginated_query(db, q, limit=25, sort_key="_id"):
 
     older_than = newer_than = None
     query_sort = -1
-    first_page = not request.args.get("older_than") and not request.args.get(
-        "newer_than"
-    )
+    first_page = not request.args.get("older_than") and not request.args.get("newer_than")
 
     query_older_than = request.args.get("older_than")
     query_newer_than = request.args.get("newer_than")
@@ -34,9 +32,7 @@ def paginated_query(db, q, limit=25, sort_key="_id"):
     outbox_len = len(outbox_data)
     if not outbox_data:
         return [], None, None
-    outbox_data = sorted(
-        outbox_data[:limit], key=sort_key_as_str, reverse=True
-    )
+    outbox_data = sorted(outbox_data[:limit], key=sort_key_as_str, reverse=True)
 
     if query_older_than:
         newer_than = str(outbox_data[0]["_id"])

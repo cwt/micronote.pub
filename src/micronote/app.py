@@ -136,11 +136,7 @@ def jsonify(**data):
         data["@context"] = config.DEFAULT_CTX
     return Response(
         response=activitypub.json_dumps(data),
-        headers={
-            "Content-Type": "application/json"
-            if app.debug
-            else "application/activity+json"
-        },
+        headers={"Content-Type": "application/json" if app.debug else "application/activity+json"},
     )
 
 
@@ -154,9 +150,7 @@ def is_api_request() -> bool:
 
 @app.errorhandler(ValueError)
 def handle_value_error(error):
-    logger.error(
-        f"caught value error: {error!r}, {traceback.format_tb(error.__traceback__)}"
-    )
+    logger.error(f"caught value error: {error!r}, {traceback.format_tb(error.__traceback__)}")
     response = flask_jsonify(message=error.args[0])
     response.status_code = 400
     return response
@@ -164,16 +158,16 @@ def handle_value_error(error):
 
 @app.errorhandler(Error)
 def handle_activitypub_error(error):
-    logger.error(
-        f"caught activitypub error {error!r}, {traceback.format_tb(error.__traceback__)}"
-    )
+    logger.error(f"caught activitypub error {error!r}, {traceback.format_tb(error.__traceback__)}")
     response = flask_jsonify(error.to_dict())
     response.status_code = error.status_code
     return response
 
+
 @app.errorhandler(500)
 def handle_500(e):
-    return render_template('500.html'), 500
+    return render_template("500.html"), 500
+
 
 # @app.errorhandler(Exception)
 # def handle_other_error(error):
@@ -211,9 +205,7 @@ def serve_grid_file(grid_out):
         last_modified = parsed_date.strftime("%a, %d %b %Y %H:%M:%S GMT")
     except (TypeError, ValueError):
         last_modified = upload_date
-    resp = app.response_class(
-        data, mimetype=(grid_out.metadata or {}).get("content_type")
-    )
+    resp = app.response_class(data, mimetype=(grid_out.metadata or {}).get("content_type"))
     resp.headers.set("Content-Length", len(data))
     resp.headers.set("ETag", grid_out.md5)
     resp.headers.set("Last-Modified", last_modified)
@@ -256,18 +248,14 @@ def remote_follow():
     template = get_remote_follow_template_sync(profile)
     if not template:
         abort(404)
-    return redirect(
-        template.format(uri=f"{USERNAME}@{DOMAIN}")
-    )
+    return redirect(template.format(uri=f"{USERNAME}@{DOMAIN}"))
 
 
 @app.route("/authorize_follow", methods=["GET", "POST"])
 @login_required
 def authorize_follow():
     if request.method == "GET":
-        return render_template(
-            "authorize_remote_follow.html", profile=request.args.get("profile")
-        )
+        return render_template("authorize_remote_follow.html", profile=request.args.get("profile"))
 
     profile = request.form.get("profile")
     actor = get_actor_url_sync(profile) if profile else None
@@ -339,7 +327,7 @@ def _get_cached(type_="html", arg=None):
         cached = DB.cache2.find_one({"path": request.path, "type": type_, "arg": arg})
         if cached:
             app.logger.info("from cache")
-            return cached['response_data']
+            return cached["response_data"]
     return None
 
 
@@ -385,9 +373,7 @@ def index():
         }
         pinned = list(DB.activities.find(q_pinned))
 
-    outbox_data, older_than, newer_than = paginated_query(
-        DB.activities, q, limit=25 - len(pinned)
-    )
+    outbox_data, older_than, newer_than = paginated_query(DB.activities, q, limit=25 - len(pinned))
 
     resp = render_template(
         "index.html",
@@ -448,9 +434,7 @@ def note_by_id(note_id):
     if is_api_request():
         return redirect(url_for("outbox_activity", item_id=note_id))
 
-    data = DB.activities.find_one(
-        {"box": Box.OUTBOX.value, "remote_id": back.activity_url(note_id)}
-    )
+    data = DB.activities.find_one({"box": Box.OUTBOX.value, "remote_id": back.activity_url(note_id)})
     if not data:
         abort(404)
     if data["meta"].get("deleted", False):
@@ -463,9 +447,7 @@ def note_by_id(note_id):
     shares = _collect_actors(data, ActivityType.ANNOUNCE)
     app.logger.info(f"shares={shares!r}")
 
-    return render_template(
-        "note.html", likes=likes, shares=shares, thread=thread, note=data
-    )
+    return render_template("note.html", likes=likes, shares=shares, thread=thread, note=data)
 
 
 @app.route("/nodeinfo")
@@ -481,29 +463,27 @@ def nodeinfo():
         }
 
         response = json.dumps(
-                {
-                    "version": "2.0",
-                    "software": {
-                        "name": "micronote.pub",
-                        "version": f"micronote.pub {VERSION}",
-                    },
-                    "protocols": ["activitypub"],
-                    "services": {"inbound": [], "outbound": []},
-                    "openRegistrations": False,
-                    "usage": {"users": {"total": 1}, "localPosts": DB.activities.count_documents(q)},
-                    "metadata": {
-                        "sourceCode": "https://github.com/cwt/micronote.pub",
-                        "nodeName": f"@{USERNAME}@{DOMAIN}",
-                    },
-                }
-            )
+            {
+                "version": "2.0",
+                "software": {
+                    "name": "micronote.pub",
+                    "version": f"micronote.pub {VERSION}",
+                },
+                "protocols": ["activitypub"],
+                "services": {"inbound": [], "outbound": []},
+                "openRegistrations": False,
+                "usage": {"users": {"total": 1}, "localPosts": DB.activities.count_documents(q)},
+                "metadata": {
+                    "sourceCode": "https://github.com/cwt/micronote.pub",
+                    "nodeName": f"@{USERNAME}@{DOMAIN}",
+                },
+            }
+        )
 
     if not cached:
         _cache(response, "api")
     return Response(
-        headers={
-            "Content-Type": "application/json; profile=http://nodeinfo.diaspora.software/ns/schema/2.0#"
-        },
+        headers={"Content-Type": "application/json; profile=http://nodeinfo.diaspora.software/ns/schema/2.0#"},
         response=response,
     )
 
@@ -516,36 +496,38 @@ def pwa_manifest():
             "Content-Type": "application/manifest+json",
             "Cache-Control": "public,max-age=86400",
         },
-        response=activitypub.json_dumps({
-            "name": f"{NAME}'s micronote.pub",
-            "short_name": USERNAME,
-            "description": SUMMARY,
-            "id": "/",
-            "start_url": "/",
-            "scope": "/",
-            "display": "standalone",
-            "background_color": "#eee",
-            "theme_color": THEME_COLOR,
-            "icons": [
-                {
-                    "src": f"{CDN_URL}/static/pwa/icon-192.png",
-                    "sizes": "192x192",
-                    "type": "image/png",
-                },
-                {
-                    "src": f"{CDN_URL}/static/pwa/icon-512.png",
-                    "sizes": "512x512",
-                    "type": "image/png",
-                    "purpose": "any",
-                },
-                {
-                    "src": f"{CDN_URL}/static/pwa/icon-maskable-512.png",
-                    "sizes": "512x512",
-                    "type": "image/png",
-                    "purpose": "maskable",
-                },
-            ],
-        }),
+        response=activitypub.json_dumps(
+            {
+                "name": f"{NAME}'s micronote.pub",
+                "short_name": USERNAME,
+                "description": SUMMARY,
+                "id": "/",
+                "start_url": "/",
+                "scope": "/",
+                "display": "standalone",
+                "background_color": "#eee",
+                "theme_color": THEME_COLOR,
+                "icons": [
+                    {
+                        "src": f"{CDN_URL}/static/pwa/icon-192.png",
+                        "sizes": "192x192",
+                        "type": "image/png",
+                    },
+                    {
+                        "src": f"{CDN_URL}/static/pwa/icon-512.png",
+                        "sizes": "512x512",
+                        "type": "image/png",
+                        "purpose": "any",
+                    },
+                    {
+                        "src": f"{CDN_URL}/static/pwa/icon-maskable-512.png",
+                        "sizes": "512x512",
+                        "type": "image/png",
+                        "purpose": "maskable",
+                    },
+                ],
+            }
+        ),
     )
 
 
@@ -594,11 +576,7 @@ def wellknown_webfinger():
 
     return Response(
         response=json.dumps(out),
-        headers={
-            "Content-Type": "application/jrd+json; charset=utf-8"
-            if not app.debug
-            else "application/json"
-        },
+        headers={"Content-Type": "application/jrd+json; charset=utf-8" if not app.debug else "application/json"},
     )
 
 
@@ -608,15 +586,15 @@ def add_extra_collection(raw_doc: dict[str, Any]) -> dict[str, Any]:
 
     raw_doc["activity"]["object"]["replies"] = embed_collection(
         raw_doc.get("meta", {}).get("count_direct_reply", 0),
-        f'{raw_doc["remote_id"]}/replies',
+        f"{raw_doc['remote_id']}/replies",
     )
 
     raw_doc["activity"]["object"]["likes"] = embed_collection(
-        raw_doc.get("meta", {}).get("count_like", 0), f'{raw_doc["remote_id"]}/likes'
+        raw_doc.get("meta", {}).get("count_like", 0), f"{raw_doc['remote_id']}/likes"
     )
 
     raw_doc["activity"]["object"]["shares"] = embed_collection(
-        raw_doc.get("meta", {}).get("count_boost", 0), f'{raw_doc["remote_id"]}/shares'
+        raw_doc.get("meta", {}).get("count_boost", 0), f"{raw_doc['remote_id']}/shares"
     )
 
     return raw_doc
@@ -693,9 +671,7 @@ def outbox():
 
 @app.route("/outbox/<item_id>")
 def outbox_detail(item_id):
-    doc = DB.activities.find_one(
-        {"box": Box.OUTBOX.value, "remote_id": back.activity_url(item_id)}
-    )
+    doc = DB.activities.find_one({"box": Box.OUTBOX.value, "remote_id": back.activity_url(item_id)})
     if not doc:
         abort(404)
 
@@ -709,9 +685,7 @@ def outbox_detail(item_id):
 
 @app.route("/outbox/<item_id>/activity")
 def outbox_activity(item_id):
-    data = DB.activities.find_one(
-        {"box": Box.OUTBOX.value, "remote_id": back.activity_url(item_id)}
-    )
+    data = DB.activities.find_one({"box": Box.OUTBOX.value, "remote_id": back.activity_url(item_id)})
     if not data:
         abort(404)
     obj = activity_from_doc(data)
@@ -863,14 +837,10 @@ def inbox():
     logger.debug(f"req_headers={request.headers}")
     logger.debug(f"raw_data={data}")
     try:
-        if not verify_request_sync(
-            request.method, request.path, request.headers, request.data
-        ):
+        if not verify_request_sync(request.method, request.path, request.headers, request.data):
             raise Exception("failed to verify request")
     except Exception:
-        logger.exception(
-            "failed to verify request, trying to verify the payload by fetching the remote"
-        )
+        logger.exception("failed to verify request, trying to verify the payload by fetching the remote")
         try:
             data = get_backend().fetch_iri_sync(data["id"])
         except ActivityGoneError:
@@ -899,15 +869,11 @@ def inbox():
                 # TODO(tsileo): write the callback the the delete external actor event
                 return Response(status=201)
         except Exception:
-            logger.exception(f'failed to fetch remote id at {data["id"]}')
+            logger.exception(f"failed to fetch remote id at {data['id']}")
             return Response(
                 status=422,
                 headers={"Content-Type": "application/json"},
-                response=json.dumps(
-                    {
-                        "error": "failed to verify request (using HTTP signatures or fetching the IRI)"
-                    }
-                ),
+                response=json.dumps({"error": "failed to verify request (using HTTP signatures or fetching the IRI)"}),
             )
     activity = ap.parse_activity(data)
     logger.debug(f"inbox activity={activity}/{data}")
@@ -932,8 +898,7 @@ def followers():
         )
 
     raw_followers, older_than, newer_than = paginated_query(DB.activities, q)
-    followers = [doc["meta"]["actor"]
-                 for doc in raw_followers if "actor" in doc.get("meta", {})]
+    followers = [doc["meta"]["actor"] for doc in raw_followers if "actor" in doc.get("meta", {})]
     return render_template(
         "followers.html",
         followers_data=followers,
@@ -961,9 +926,11 @@ def following():
         abort(404)
 
     following, older_than, newer_than = paginated_query(DB.activities, q)
-    following = [(doc["remote_id"], doc["meta"]["object"])
-                 for doc in following
-                 if "remote_id" in doc and "object" in doc.get("meta", {})]
+    following = [
+        (doc["remote_id"], doc["meta"]["object"])
+        for doc in following
+        if "remote_id" in doc and "object" in doc.get("meta", {})
+    ]
     return render_template(
         "following.html",
         following_data=following,
@@ -1042,9 +1009,7 @@ def liked():
 
         liked, older_than, newer_than = paginated_query(DB.activities, q)
 
-        return render_template(
-            "liked.html", liked=liked, older_than=older_than, newer_than=newer_than
-        )
+        return render_template("liked.html", liked=liked, older_than=older_than, newer_than=newer_than)
 
     q = {"meta.deleted": False, "meta.undo": False, "type": ActivityType.LIKE.value}
     return jsonify(
@@ -1058,10 +1023,8 @@ def liked():
     )
 
 
-@app.route('/favicon.ico')
+@app.route("/favicon.ico")
 def favicon():
     return send_from_directory(
-        directory=os.path.join(app.root_path, 'static'),
-        path='favicon.ico',
-        mimetype='image/vnd.microsoft.icon'
+        directory=os.path.join(app.root_path, "static"), path="favicon.ico", mimetype="image/vnd.microsoft.icon"
     )

@@ -22,17 +22,13 @@ def _build_thread(data: dict, include_children: bool = True) -> list[dict]:
         ]
     }
     if data["activity"]["object"].get("inReplyTo"):
-        query["$or"].append(
-            {"activity.object.id": data["activity"]["object"]["inReplyTo"]}
-        )
+        query["$or"].append({"activity.object.id": data["activity"]["object"]["inReplyTo"]})
 
     # Fetch the root replies, and the children
     replies = [data, *DB.activities.find(query)]
     # Thread members need a full object; Like/Announce docs referencing it
     # by bare IRI are listed separately on the note page, not in the tree.
-    replies = [
-        rep for rep in replies if isinstance(rep["activity"].get("object"), dict)
-    ]
+    replies = [rep for rep in replies if isinstance(rep["activity"].get("object"), dict)]
     replies = sorted(replies, key=published_of)
     # Index all the IDs in order to build a tree
     idx = {}

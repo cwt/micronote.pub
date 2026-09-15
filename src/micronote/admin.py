@@ -17,7 +17,7 @@ from micronote.utils.lookup import lookup
 from micronote.utils.query import paginated_query
 from micronote.utils.thread import _build_thread
 
-blueprint = flask.Blueprint('admin', __name__, template_folder='templates')
+blueprint = flask.Blueprint("admin", __name__, template_folder="templates")
 csrf = CSRFProtect(current_app)
 
 
@@ -83,9 +83,7 @@ def admin_lookup():
                 }
 
         current_app.logger.debug(data)
-    return render_template(
-        "lookup.html", data=data, meta=meta, url=request.form.get("url")
-    )
+    return render_template("lookup.html", data=data, meta=meta, url=request.form.get("url"))
 
 
 @blueprint.route("/admin/thread")
@@ -209,13 +207,9 @@ def admin_stream():
         if request.args.get("debug_inbox"):
             q = {}
 
-    inbox_data, older_than, newer_than = paginated_query(
-        DB.activities, q, limit=requested_limit()
-    )
+    inbox_data, older_than, newer_than = paginated_query(DB.activities, q, limit=requested_limit())
 
-    return render_template(
-        tpl, inbox_data=inbox_data, older_than=older_than, newer_than=newer_than
-    )
+    return render_template(tpl, inbox_data=inbox_data, older_than=older_than, newer_than=newer_than)
 
 
 @blueprint.route("/admin/logout")
@@ -253,9 +247,7 @@ def admin_login():
         if credentials:
             assertion = json.loads(request.form.get("assertion"))
             try:
-                credential = get_server().authenticate_complete(
-                    load_state("login"), credentials, assertion
-                )
+                credential = get_server().authenticate_complete(load_state("login"), credentials, assertion)
             except ValueError as exc:
                 current_app.logger.debug(f"webauthn failed: {exc}")
                 abort(401)
@@ -266,9 +258,7 @@ def admin_login():
 
         session.clear()
         session["logged_in"] = True
-        return redirect(
-            safe_next_url(request.args.get("redirect"), url_for(".admin_notifications"))
-        )
+        return redirect(safe_next_url(request.args.get("redirect"), url_for(".admin_notifications")))
 
     options = None
     if credentials:
