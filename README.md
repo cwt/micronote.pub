@@ -121,6 +121,88 @@ Notes for Podman / rootless / RHEL hosts:
 - `podman-compose` (the separate Python project) also accepts these
   files; `podman compose` (built into Podman 4.1+) is preferred.
 
+### Rootless Podman via Quadlet (user systemd)
+
+If you'd rather run the containers as your own user's systemd services
+instead of `podman compose`, Quadlet (built into Podman 4.4+) turns
+plain unit files into services. Keep the user manager alive across
+logouts first, then build the image as usual:
+
+```shell
+$ loginctl enable-linger $USER
+$ podman build -t micronote:latest .
+```
+
+Put these in `~/.config/containers/systemd/`, pointing the `Volume=`
+lines at your `config/` and `data/` directories:
+
+`micronote-web.container`:
+
+```ini
+[Unit]
+Description=micronote web
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=micronote:latest
+ContainerName=micronote-web
+PublishPort=5005:5005
+Volume=%h/micronote/config:/app/config:Z
+Volume=%h/micronote/data:/app/data:Z
+Environment=MICRONOTE_DEBUG=1
+
+[Service]
+Restart=always
+TimeoutStartSec=900
+
+[Install]
+WantedBy=default.target
+```
+
+`micronote-worker.container` (same image and mounts, different command):
+
+```ini
+[Unit]
+Description=micronote worker
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=micronote:latest
+ContainerName=micronote-worker
+Exec=python -m micronote.worker
+Volume=%h/micronote/config:/app/config:Z
+Volume=%h/micronote/data:/app/data:Z
+Environment=MICRONOTE_DEBUG=1
+
+[Service]
+Restart=always
+TimeoutStartSec=900
+
+[Install]
+WantedBy=default.target
+```
+
+Then enable them (Quadlet generates `micronote-web.service` and
+`micronote-worker.service` from the `.container` files):
+
+```shell
+$ systemctl --user daemon-reload
+$ systemctl --user enable --now micronote-web.service micronote-worker.service
+$ systemctl --user status micronote-web.service
+$ journalctl --user -u micronote-web.service -f   # logs
+```
+
+Notes:
+
+- The **same** `data/` directory must be mounted into both units —
+  the web app and the worker share one SQLite file.
+- The `:Z` suffix handles the SELinux relabeling from the section
+  above; drop it on non-SELinux systems if Podman complains.
+- Rootless port 5005 needs no extra privileges; change the host side
+  of `PublishPort=` if it collides with something else.
+
 ### Manual run behind nginx (SSL termination on nginx)
 
 The app itself only speaks plain HTTP; TLS ends at nginx. Absolute
