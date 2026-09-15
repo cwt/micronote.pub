@@ -55,17 +55,21 @@ def _clean_html(html):
         return ""
 
 
+def _public_media_url(path: str) -> str:
+    return f"{CDN_URL}{path}" if path.startswith("/") else path
+
+
 def _get_file_url(url, size, kind):
     k = (kind, url, size)
     cached = _GRIDFS_CACHE.get(k)
     if cached:
-        return CDN_URL + cached if cached.startswith('/') else cached
+        return _public_media_url(cached)
 
     doc = MEDIA_CACHE.get_file(url, size, kind)
     if doc:
-        u = f"/media/{str(doc._id)}"
+        u = f"/media/{doc._id}"
         _GRIDFS_CACHE[k] = u
-        return CDN_URL + u if u.startswith('/') else u
+        return _public_media_url(u)
 
     # MEDIA_CACHE.cache(url, kind)
     current_app.logger.error(f"cache not available for {url}/{size}/{kind}")
@@ -214,18 +218,13 @@ def format_timeago(val):
 
 @blueprint.app_template_filter()
 def has_type(doc, _types):
-    for _type in _to_list(_types):
-        if _type in _to_list(doc["type"]):
-            return True
-    return False
+    doc_types = _to_list(doc["type"])
+    return any(_type in doc_types for _type in _to_list(_types))
 
 
 @blueprint.app_template_filter()
 def has_actor_type(doc):
-    for t in ap.ACTOR_TYPES:
-        if has_type(doc, t.value):
-            return True
-    return False
+    return any(has_type(doc, t.value) for t in ap.ACTOR_TYPES)
 
 
 def _is_img(filename: str) -> bool:

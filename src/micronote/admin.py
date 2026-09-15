@@ -247,29 +247,28 @@ def admin_login():
         csrf.protect()
         pwd = request.form.get("pass")
         username = request.form.get("username")
-        if pwd and username == USERNAME and verify_pass(pwd):
-            if credentials:
-                assertion = json.loads(request.form.get("assertion"))
-                try:
-                    credential = get_server().authenticate_complete(
-                        load_state("login"), credentials, assertion
-                    )
-                except ValueError as exc:
-                    current_app.logger.debug(f"webauthn failed: {exc}")
-                    abort(401)
-                    return
-                finally:
-                    clear_state("login")
-                if credential.sign_count != 0:
-                    update_sign_count(credential.credential_id, credential.sign_count)
-
-            session.clear()
-            session["logged_in"] = True
-            return redirect(
-                safe_next_url(request.args.get("redirect"), url_for(".admin_notifications"))
-            )
-        else:
+        if not (pwd and username == USERNAME and verify_pass(pwd)):
             abort(401)
+
+        if credentials:
+            assertion = json.loads(request.form.get("assertion"))
+            try:
+                credential = get_server().authenticate_complete(
+                    load_state("login"), credentials, assertion
+                )
+            except ValueError as exc:
+                current_app.logger.debug(f"webauthn failed: {exc}")
+                abort(401)
+            finally:
+                clear_state("login")
+            if credential.sign_count != 0:
+                update_sign_count(credential.credential_id, credential.sign_count)
+
+        session.clear()
+        session["logged_in"] = True
+        return redirect(
+            safe_next_url(request.args.get("redirect"), url_for(".admin_notifications"))
+        )
 
     options = None
     if credentials:

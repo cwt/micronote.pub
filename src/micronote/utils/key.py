@@ -1,10 +1,11 @@
 import binascii
 import os
 from collections.abc import Callable
+from pathlib import Path
 
 from active_boxes.key import Key
 
-KEY_DIR = os.getenv("MICRONOTE_CONFIG_DIR", os.path.abspath("config"))
+KEY_DIR = Path(os.getenv("MICRONOTE_CONFIG_DIR", os.path.abspath("config")))
 
 
 def _new_key() -> str:
@@ -13,30 +14,25 @@ def _new_key() -> str:
 
 def get_secret_key(name: str, new_key: Callable[[], str] = _new_key) -> str:
     """Loads or generates a cryptographic key."""
-    key_path = os.path.join(KEY_DIR, f"{name}.key")
-    if not os.path.exists(key_path):
+    key_path = KEY_DIR / f"{name}.key"
+    if not key_path.exists():
         k = new_key()
-        with open(key_path, "w+") as f:
-            f.write(k)
+        key_path.write_text(k)
         return k
 
-    with open(key_path) as f:
-        return f.read()
+    return key_path.read_text()
 
 
 def get_key(owner: str, user: str, domain: str) -> Key:
-    """"Loads or generates an RSA key."""
+    """Loads or generates an RSA key."""
     k = Key(owner)
     user = user.replace(".", "_")
     domain = domain.replace(".", "_")
-    key_path = os.path.join(KEY_DIR, f"key_{user}_{domain}.pem")
-    if os.path.isfile(key_path):
-        with open(key_path) as f:
-            privkey_pem = f.read()
-            k.load(privkey_pem)
+    key_path = KEY_DIR / f"key_{user}_{domain}.pem"
+    if key_path.is_file():
+        k.load(key_path.read_text())
     else:
         k.new()
-        with open(key_path, "w") as f:
-            f.write(k.privkey_pem)
+        key_path.write_text(k.privkey_pem)
 
     return k

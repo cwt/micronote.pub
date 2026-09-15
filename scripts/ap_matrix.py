@@ -42,7 +42,7 @@ def check(name, condition, detail=""):
 def stub_key(stub_base):
     port = stub_base.rsplit(":", 1)[1]
     key_file = os.path.join(REPO_ROOT, "scripts", f".stub_key_{port}.pem")
-    actor = stub_base + "/actor"
+    actor = f"{stub_base}/actor"
     key = Key(actor)
     with open(key_file) as f:
         key.load(f.read())
@@ -56,7 +56,7 @@ def signed_post(url, payload, key):
 
 
 def stub_received(stub_base):
-    return requests.get(stub_base + "/received", timeout=15).json()
+    return requests.get(f"{stub_base}/received", timeout=15).json()
 
 
 def poll_received(stub_base, match, timeout=30):
@@ -79,7 +79,7 @@ def is_accept_for(entry, follow_id):
 
 
 def reset_stub(stub_base):
-    requests.post(stub_base + "/reset", timeout=15).raise_for_status()
+    requests.post(f"{stub_base}/reset", timeout=15).raise_for_status()
 
 
 def unique_id(stub_base, kind):
@@ -88,7 +88,7 @@ def unique_id(stub_base, kind):
 
 def stage(stub_base, doc):
     """Registers doc on the stub so fetch-fallback can dereference it."""
-    resp = requests.post(stub_base + "/stage", json=doc, timeout=15)
+    resp = requests.post(f"{stub_base}/stage", json=doc, timeout=15)
     resp.raise_for_status()
     return doc
 
@@ -111,22 +111,22 @@ def undo_active_follows(peer, stub):
     Makes follow cases repeatable regardless of previous runs, and proves
     re-follow after Undo still goes through.
     """
-    for doc in active_stub_follows(stub + "/actor"):
+    for doc in active_stub_follows(f"{stub}/actor"):
         undo = {
             "type": "Undo",
             "id": unique_id(stub, "undo"),
-            "actor": stub + "/actor",
+            "actor": f"{stub}/actor",
             "object": doc["activity"],
         }
         stage(stub, undo)
-        resp = requests.post(peer + "/inbox", json=undo, timeout=15)
+        resp = requests.post(f"{peer}/inbox", json=undo, timeout=15)
         check("cleanup undo accepted", resp.status_code == 201, f"HTTP {resp.status_code}")
     deadline = time.monotonic() + 30
     while time.monotonic() < deadline:
-        if not active_stub_follows(stub + "/actor"):
+        if not active_stub_follows(f"{stub}/actor"):
             break
         time.sleep(1)
-    check("no active stub follows remain", not active_stub_follows(stub + "/actor"))
+    check("no active stub follows remain", not active_stub_follows(f"{stub}/actor"))
 
 
 def count_accepts_for(stub_base, follow_id):
@@ -137,10 +137,10 @@ def case_follow(peer, stub, key):
     print("--- follow: stub follows peer, expect auto-Accept ---")
     undo_active_follows(peer, stub)
     reset_stub(stub)
-    follow = requests.get(stub + "/follow/1", timeout=15).json()
+    follow = requests.get(f"{stub}/follow/1", timeout=15).json()
     follow["id"] = unique_id(stub, "follow")
     stage(stub, follow)
-    resp = signed_post(peer + "/inbox", follow, key)
+    resp = signed_post(f"{peer}/inbox", follow, key)
     check("follow accepted", resp.status_code == 201, f"HTTP {resp.status_code}")
     def match_accept(e):
         return is_accept_for(e, follow["id"])
@@ -151,27 +151,27 @@ def case_follow(peer, stub, key):
         check("Accept signature verifies", entry["verified"] is True)
     doc = DB.activities.find_one({"box": "inbox", "remote_id": follow["id"]})
     check("Follow stored", doc is not None)
-    check("stub is follower", len(active_stub_follows(stub + "/actor")) == 1)
+    check("stub is follower", len(active_stub_follows(f"{stub}/actor")) == 1)
 
     print("--- re-follow same actor with new id, expect no duplicate ---")
-    follow2 = requests.get(stub + "/follow/1", timeout=15).json()
+    follow2 = requests.get(f"{stub}/follow/1", timeout=15).json()
     follow2["id"] = unique_id(stub, "follow")
     stage(stub, follow2)
-    resp = signed_post(peer + "/inbox", follow2, key)
+    resp = signed_post(f"{peer}/inbox", follow2, key)
     check("re-follow accepted", resp.status_code == 201, f"HTTP {resp.status_code}")
     time.sleep(8)  # absence needs a window; eager mode settles instantly
     check("no second Accept", count_accepts_for(stub, follow2["id"]) == 0)
-    check("still one follower row", len(active_stub_follows(stub + "/actor")) == 1)
+    check("still one follower row", len(active_stub_follows(f"{stub}/actor")) == 1)
 
 
 def case_create(peer, stub, key):
     print("--- create: stub posts note, expect stream flag ---")
-    create = requests.get(stub + "/create/1", timeout=15).json()
+    create = requests.get(f"{stub}/create/1", timeout=15).json()
     create["id"] = unique_id(stub, "create")
     create["object"]["id"] = unique_id(stub, "note")
     stage(stub, create)
     before = len(stub_received(stub))
-    resp = signed_post(peer + "/inbox", create, key)
+    resp = signed_post(f"{peer}/inbox", create, key)
     check("create accepted", resp.status_code == 201, f"HTTP {resp.status_code}")
     doc = None
     deadline = time.monotonic() + 30
@@ -190,7 +190,7 @@ def case_create(peer, stub, key):
 def case_like(peer, stub, key):
     print("--- like: stub likes local note, expect counter ---")
     note_resp = requests.post(
-        peer + "/api/new_note",
+        f"{peer}/api/new_note",
         headers={"Authorization": "Bearer " + admin_key()},
         data={"content": "matrix like target"},
         timeout=15,
@@ -201,11 +201,11 @@ def case_like(peer, stub, key):
     like = {
         "type": "Like",
         "id": unique_id(stub, "like"),
-        "actor": stub + "/actor",
+        "actor": f"{stub}/actor",
         "object": note_id,
     }
     stage(stub, like)
-    resp = signed_post(peer + "/inbox", like, key)
+    resp = signed_post(f"{peer}/inbox", like, key)
     check("like accepted", resp.status_code == 201, f"HTTP {resp.status_code}")
     doc = None
     deadline = time.monotonic() + 30
@@ -221,10 +221,10 @@ def case_unsigned_follow(peer, stub, key):
     print("--- unsigned-follow: no signature, expect fetch fallback ---")
     undo_active_follows(peer, stub)
     reset_stub(stub)
-    follow = requests.get(stub + "/follow/1", timeout=15).json()
+    follow = requests.get(f"{stub}/follow/1", timeout=15).json()
     follow["id"] = unique_id(stub, "follow")
     stage(stub, follow)
-    resp = requests.post(peer + "/inbox", json=follow, timeout=15)
+    resp = requests.post(f"{peer}/inbox", json=follow, timeout=15)
     check("fallback accepted", resp.status_code == 201, f"HTTP {resp.status_code}")
     def match_accept(e):
         return is_accept_for(e, follow["id"])
@@ -233,7 +233,7 @@ def case_unsigned_follow(peer, stub, key):
     check("Accept delivered", entry is not None)
     if entry:
         check("Accept signature verifies", entry["verified"] is True)
-    check("stub is follower", len(active_stub_follows(stub + "/actor")) == 1)
+    check("stub is follower", len(active_stub_follows(f"{stub}/actor")) == 1)
 
 
 CASES = {

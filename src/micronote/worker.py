@@ -444,7 +444,7 @@ def retry_delay(attempts) -> int:
     return int(random.uniform(2, 4) ** attempts)
 
 
-def run_job(doc) -> None:
+def run_job(doc: dict) -> None:
     try:
         JOB_HANDLERS[doc["type"]](doc)
     except Exception as err:
@@ -470,7 +470,7 @@ def run_job(doc) -> None:
         DB.jobs.delete_one({"_id": doc["_id"]})
 
 
-def drain_jobs(limit=100, max_passes=100):
+def drain_jobs(limit: int = 100, max_passes: int = 100) -> int:
     """Claims and runs due jobs. Repeats until a pass claims nothing, so
     jobs chained mid-drain are picked up by the next pass."""
     processed = 0
@@ -495,12 +495,12 @@ def drain_jobs(limit=100, max_passes=100):
     return processed
 
 
-def load_resume_token():
+def load_resume_token() -> str | None:
     state = DB.worker_state.find_one({"_id": RESUME_TOKEN_ID})
     return state["token"] if state else None
 
 
-def save_resume_token(token) -> None:
+def save_resume_token(token: str) -> None:
     DB.worker_state.update_one(
         {"_id": RESUME_TOKEN_ID}, {"$set": {"token": token}}, upsert=True
     )
@@ -516,13 +516,15 @@ def ensure_jobs_table() -> None:
 def run() -> None:
     log.info("worker starting, draining backlog")
     ensure_jobs_table()
-    last_sweep = [0.0]
+    last_sweep = 0.0
 
-    def swept_drain(limit):
+    def swept_drain(limit: int) -> int:
+        nonlocal last_sweep
         processed = drain_jobs(limit=limit)
-        if time.monotonic() - last_sweep[0] >= SWEEP_INTERVAL_SECONDS:
+        now = time.monotonic()
+        if now - last_sweep >= SWEEP_INTERVAL_SECONDS:
             create_db_connection().sweep_ttl_once()
-            last_sweep[0] = time.monotonic()
+            last_sweep = now
         return processed
 
     swept_drain(limit=1000)

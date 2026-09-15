@@ -68,10 +68,10 @@ def clear_state(name: str) -> None:
 
 def stored_credentials():
     """Rebuilds AttestedCredentialData objects for every registered key."""
-    credentials = []
-    for doc in DB.webauthn.find():
-        credentials.append(AttestedCredentialData(_b64decode(doc["attested"])))
-    return credentials
+    return [
+        AttestedCredentialData(_b64decode(doc["attested"]))
+        for doc in DB.webauthn.find()
+    ]
 
 
 def save_credential(auth_data, name: str = "key") -> None:

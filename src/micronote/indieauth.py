@@ -1,7 +1,7 @@
 import binascii
 import json
 import os
-from datetime import datetime
+from datetime import UTC, datetime
 from urllib.parse import urlencode, urlparse
 
 import flask
@@ -114,7 +114,7 @@ def indieauth_endpoint():
         response_type = request.args.get("response_type", "id")
         scope = request.args.get("scope", "").split()
 
-        current_app.logger.debug("STATE", state)
+        current_app.logger.debug(f"STATE {state}")
         return render_template(
             "indieauth_flow.html",
             client=get_client_id_data(client_id),
@@ -141,7 +141,7 @@ def indieauth_endpoint():
         sort=[("_id", DESCENDING)],
     )
     current_app.logger.debug(auth)
-    current_app.logger.debug(code, redirect_uri, client_id)
+    current_app.logger.debug(f"{code} {redirect_uri} {client_id}")
 
     if not auth:
         abort(403)
@@ -151,7 +151,7 @@ def indieauth_endpoint():
     me = auth["me"]
     state = auth["state"]
     scope = " ".join(auth["scope"])
-    current_app.logger.debug("STATE", state)
+    current_app.logger.debug(f"STATE {state}")
     return build_auth_resp({"me": me, "state": state, "scope": scope})
 
 
@@ -178,7 +178,7 @@ def token_endpoint():
             "me": me,
             "client_id": client_id,
             "scope": scope,
-            "ts": datetime.now().timestamp(),
+            "ts": datetime.now(UTC).timestamp(),
         }
         token = JWT.dumps(payload)
 

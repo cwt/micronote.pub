@@ -24,11 +24,19 @@ from flask import Flask, Response, jsonify, request
 
 log = logging.getLogger(__name__)
 
-KEY_FILE_TEMPLATE = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), ".stub_key_{port}.pem"
-)
+# Populated by create_app(); declared here for type checkers.
+STUB_BASE: str
+ACTOR: str
+KEY_ID: str
+PEER: str
+STUB_KEY: Key
+RECEIVED: list[dict] = []
 
-RECEIVED = []
+
+def key_file_for(port: int) -> str:
+    return os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), f".stub_key_{port}.pem"
+    )
 
 
 class StubBackend(Backend):
@@ -60,7 +68,7 @@ class StubBackend(Backend):
 
 
 def load_or_create_key(actor_id, port):
-    key_file = KEY_FILE_TEMPLATE.format(port=port)
+    key_file = key_file_for(port)
     key = Key(actor_id)
     if os.path.isfile(key_file):
         with open(key_file) as f:

@@ -7,6 +7,7 @@ from active_boxes import activitypub as ap
 from micronote import activitypub
 from micronote.activitypub import Box
 from micronote.config import BASE_URL, DB, ID, ME
+from micronote.utils import strtobool
 
 log = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ STATUS_FAILED = "failed"
 
 # Local testing without a worker process: drain the job queue inline
 # after every enqueue. Production runs worker.py instead.
-TASK_EAGER = os.getenv("MICRONOTE_TASK_EAGER", "false").lower() in ("1", "true", "yes", "on")
+TASK_EAGER = strtobool(os.getenv("MICRONOTE_TASK_EAGER", "false"))
 
 
 def enqueue_job(job_type, iri=None, payload=None, to=None, also_cache_attachments=True):
@@ -62,10 +63,11 @@ def post_to_inbox(activity: ap.BaseActivity) -> None:
         log.info(f"received duplicate activity {activity!r}, dropping it")
         return
 
-    if activity.has_type(ap.ActivityType.FOLLOW):
-        if back.inbox_has_active_follower(MY_PERSON, actor.id):
-            log.info(f"actor {actor.id} already follows, dropping duplicate Follow {activity!r}")
-            return
+    if activity.has_type(ap.ActivityType.FOLLOW) and back.inbox_has_active_follower(
+        MY_PERSON, actor.id
+    ):
+        log.info(f"actor {actor.id} already follows, dropping duplicate Follow {activity!r}")
+        return
 
     back.save(Box.INBOX, activity)
     enqueue_job("process_new_activity", iri=activity.id)

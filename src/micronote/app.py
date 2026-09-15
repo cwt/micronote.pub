@@ -310,13 +310,13 @@ def webauthn_register():
         options, state = server.register_begin(user, credentials=stored_credentials())
         save_state("register", state)
         return render_template("webauthn_register.html", options=credential_options(options))
-    else:
-        csrf.protect()
-        credential = json.loads(request.form.get("credential"))
-        auth_data = server.register_complete(load_state("register"), credential)
-        clear_state("register")
-        save_credential(auth_data)
-        return redirect("/admin")
+
+    csrf.protect()
+    credential = json.loads(request.form.get("credential"))
+    auth_data = server.register_complete(load_state("register"), credential)
+    clear_state("register")
+    save_credential(auth_data)
+    return redirect("/admin")
 
 
 #######
@@ -345,7 +345,7 @@ def _get_cached(type_="html", arg=None):
 
 def _cache(resp, type_="html", arg=None):
     if not CACHING:
-        return None
+        return
     logged_in = session.get("logged_in")
     if not logged_in:
         DB.cache2.update_one(
@@ -353,7 +353,6 @@ def _cache(resp, type_="html", arg=None):
             {"$set": {"response_data": resp, "date": datetime.now(UTC)}},
             upsert=True,
         )
-    return None
 
 
 @app.route("/")
@@ -420,6 +419,30 @@ def with_replies():
     )
 
 
+def _collect_actors(note_data: dict[str, Any], activity_type: ActivityType) -> list[dict]:
+    """Collects the cached actors of Like/Announce activities targeting the note."""
+    object_id = note_data["activity"]["object"]["id"]
+    docs = DB.activities.find(
+        {
+            "meta.undo": False,
+            "meta.deleted": False,
+            "type": activity_type.value,
+            "$or": [
+                # FIXME(tsileo): remove all the useless $or
+                {"activity.object.id": object_id},
+                {"activity.object": object_id},
+            ],
+        }
+    )
+    actors = []
+    for doc in docs:
+        try:
+            actors.append(doc["meta"]["actor"])
+        except Exception:
+            app.logger.exception(f"invalid doc: {doc!r}")
+    return actors
+
+
 @app.route("/note/<note_id>")
 def note_by_id(note_id):
     if is_api_request():
@@ -435,47 +458,9 @@ def note_by_id(note_id):
     thread = _build_thread(data)
     app.logger.info(f"thread={thread!r}")
 
-    raw_likes = list(
-        DB.activities.find(
-            {
-                "meta.undo": False,
-                "meta.deleted": False,
-                "type": ActivityType.LIKE.value,
-                "$or": [
-                    # FIXME(tsileo): remove all the useless $or
-                    {"activity.object.id": data["activity"]["object"]["id"]},
-                    {"activity.object": data["activity"]["object"]["id"]},
-                ],
-            }
-        )
-    )
-    likes = []
-    for doc in raw_likes:
-        try:
-            likes.append(doc["meta"]["actor"])
-        except Exception:
-            app.logger.exception(f"invalid doc: {doc!r}")
+    likes = _collect_actors(data, ActivityType.LIKE)
     app.logger.info(f"likes={likes!r}")
-
-    raw_shares = list(
-        DB.activities.find(
-            {
-                "meta.undo": False,
-                "meta.deleted": False,
-                "type": ActivityType.ANNOUNCE.value,
-                "$or": [
-                    {"activity.object.id": data["activity"]["object"]["id"]},
-                    {"activity.object": data["activity"]["object"]["id"]},
-                ],
-            }
-        )
-    )
-    shares = []
-    for doc in raw_shares:
-        try:
-            shares.append(doc["meta"]["actor"])
-        except Exception:
-            app.logger.exception(f"invalid doc: {doc!r}")
+    shares = _collect_actors(data, ActivityType.ANNOUNCE)
     app.logger.info(f"shares={shares!r}")
 
     return render_template(
@@ -596,7 +581,7 @@ def wellknown_webfinger():
             {"rel": "self", "type": "application/activity+json", "href": ID},
             {
                 "rel": "http://ostatus.org/schema/1.0/subscribe",
-                "template": BASE_URL + "/authorize_follow?profile={uri}",
+                "template": f"{BASE_URL}/authorize_follow?profile={{uri}}",
             },
             {"rel": "magic-public-key", "href": KEY.to_magic_key()},
             {
@@ -643,7 +628,7 @@ def remove_context(activity: dict[str, Any]) -> dict[str, Any]:
     return activity
 
 
-def activity_from_doc(raw_doc: dict[str, Any], embed: bool=False) -> dict[str, Any]:
+def activity_from_doc(raw_doc: dict[str, Any], embed: bool = False) -> dict[str, Any]:
     raw_doc = add_extra_collection(raw_doc)
     activity = clean_activity(raw_doc["activity"])
     if embed:

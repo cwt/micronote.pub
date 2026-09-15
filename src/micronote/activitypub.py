@@ -3,6 +3,7 @@ import logging
 import os
 from datetime import UTC, datetime
 from enum import StrEnum
+from functools import wraps
 from typing import Any
 
 from active_boxes import activitypub as ap
@@ -45,7 +46,7 @@ def json_dumps(data) -> str:
     return json.dumps(data, default=_json_default)
 
 
-def _actor_to_meta(actor: ap.BaseActivity, with_inbox=False) -> dict[str, Any]:
+def _actor_to_meta(actor: ap.BaseActivity, with_inbox: bool = False) -> dict[str, Any]:
     meta = {
         "id": actor.id,
         "url": actor.url,
@@ -66,14 +67,14 @@ def _actor_to_meta(actor: ap.BaseActivity, with_inbox=False) -> dict[str, Any]:
 def _remove_id(doc: ap.ObjectType) -> ap.ObjectType:
     """Helper for removing MongoDB's `_id` field."""
     doc = doc.copy()
-    if "_id" in doc:
-        del (doc["_id"])
+    doc.pop("_id", None)
     return doc
 
 
 def ensure_it_is_me(f):
     """Method decorator used to track the events fired during tests."""
 
+    @wraps(f)
     def wrapper(*args, **kwargs):
         if args[1].id != ME["id"]:
             raise Error("unexpected actor")
@@ -143,13 +144,12 @@ class MicroblogPubBackend(Backend):
             "type": ap.ActivityType.FOLLOW.value,
             "meta.undo": False,
         }
-        recipients = []
-        for doc in self.DB.activities.find(q):
-            recipients.append(
-                doc["meta"]["actor"]["sharedInbox"] or doc["meta"]["actor"]["inbox"]
-            )
+        recipients = {
+            doc["meta"]["actor"]["sharedInbox"] or doc["meta"]["actor"]["inbox"]
+            for doc in self.DB.activities.find(q)
+        }
 
-        return list(set(recipients))
+        return list(recipients)
 
     def following(self) -> list[str]:
         q = {
@@ -160,13 +160,13 @@ class MicroblogPubBackend(Backend):
         return [doc["activity"]["object"] for doc in self.DB.activities.find(q)]
 
     def parse_collection(
-        self, payload: dict[str, Any] | None=None, url: str | None=None
+        self, payload: dict[str, Any] | None = None, url: str | None = None
     ) -> list[str]:
         """Resolve/fetch a `Collection`/`OrderedCollection`."""
         # Resolve internal collections via MongoDB directly
-        if url == ID + "/followers":
+        if url == f"{ID}/followers":
             return self.followers()
-        elif url == ID + "/following":
+        if url == f"{ID}/following":
             return self.following()
 
         return super().parse_collection(payload, url)
@@ -199,7 +199,7 @@ class MicroblogPubBackend(Backend):
                 raise ActivityGoneError(f"{iri} is gone")
             if data and is_a_note:
                 return data["activity"]["object"]
-            elif data:
+            if data:
                 return data["activity"]
         else:
             # Check if the activity is stored in the inbox
@@ -581,22 +581,28 @@ def gen_feed():
     return fg
 
 
+def _feed_item(item: dict[str, Any], author: dict[str, Any] | None = None) -> dict[str, Any]:
+    """One JSON Feed entry; `author` is only set for inbox activities."""
+    note = item["activity"]["object"]
+    entry = {
+        "id": item["activity"]["id"],
+        "url": note.get("url"),
+        "content_html": note["content"],
+        "content_text": html2text(note["content"]),
+        "date_published": note.get("published"),
+    }
+    if author is not None:
+        entry["author"] = author
+    return entry
+
+
 def json_feed(path: str) -> dict[str, Any]:
     """JSON Feed (https://jsonfeed.org/) document."""
-    data = []
-    for item in DB.activities.find(
+    items = DB.activities.find(
         {"box": Box.OUTBOX.value, "type": "Create", "meta.deleted": False},
         limit=10
-    ).sort("_id", -1):
-        data.append(
-            {
-                "id": item["activity"]["id"],
-                "url": item["activity"]["object"].get("url"),
-                "content_html": item["activity"]["object"]["content"],
-                "content_text": html2text(item["activity"]["object"]["content"]),
-                "date_published": item["activity"]["object"].get("published"),
-            }
-        )
+    ).sort("_id", -1)
+    data = [_feed_item(item) for item in items]
     return {
         "version": "https://jsonfeed.org/version/1",
         "user_comment": (
@@ -618,9 +624,6 @@ def build_inbox_json_feed(
     path: str, request_cursor: str | None = None
 ) -> dict[str, Any]:
     """Build a JSON feed from the inbox activities."""
-    data = []
-    cursor = None
-
     q: dict[str, Any] = {
         "type": "Create",
         "meta.deleted": False,
@@ -632,23 +635,21 @@ def build_inbox_json_feed(
         except Exception:
             abort(400)
 
-    for item in DB.activities.find(q, limit=50).sort("_id", -1):
+    items = list(DB.activities.find(q, limit=50).sort("_id", -1))
+    data = []
+    for item in items:
         actor = ap.get_backend().fetch_iri_sync(item["activity"]["actor"])
         data.append(
-            {
-                "id": item["activity"]["id"],
-                "url": item["activity"]["object"].get("url"),
-                "content_html": item["activity"]["object"]["content"],
-                "content_text": html2text(item["activity"]["object"]["content"]),
-                "date_published": item["activity"]["object"].get("published"),
-                "author": {
+            _feed_item(
+                item,
+                author={
                     "name": actor.get("name", actor.get("preferredUsername")),
                     "url": actor.get("url"),
                     "avatar": actor.get("icon", {}).get("url"),
                 },
-            }
+            )
         )
-        cursor = str(item["_id"])
+    cursor = str(items[-1]["_id"]) if items else None
     resp = {
         "version": "https://jsonfeed.org/version/1",
         "title": f"{USERNAME}'s stream",
@@ -687,6 +688,7 @@ def build_ordered_collection(
 ):
     """Helper for building an OrderedCollection from a MongoDB query (with pagination support)."""
     col_name = col_name or col.name
+    collection_id = f"{BASE_URL}/{col_name}"
     if q is None:
         q = {}
 
@@ -703,14 +705,14 @@ def build_ordered_collection(
             return {
                 "@context": ap.COLLECTION_CTX,
                 "type": ap.ActivityType.ORDERED_COLLECTION_PAGE.value,
-                "id": BASE_URL + "/" + col_name + "?cursor=" + cursor,
-                "partOf": BASE_URL + "/" + col_name,
+                "id": f"{collection_id}?cursor={cursor}",
+                "partOf": collection_id,
                 "totalItems": 0,
                 "orderedItems": [],
             }
         return {
             "@context": ap.COLLECTION_CTX,
-            "id": BASE_URL + "/" + col_name,
+            "id": collection_id,
             "totalItems": 0,
             "type": ap.ActivityType.ORDERED_COLLECTION.value,
             "orderedItems": [],
@@ -724,44 +726,28 @@ def build_ordered_collection(
     if map_func:
         data = [map_func(doc) for doc in data]
 
-    # No cursor, this is the first page and we return an OrderedCollection
-    if not cursor:
-        resp = {
-            "@context": ap.COLLECTION_CTX,
-            "id": f"{BASE_URL}/{col_name}",
-            "totalItems": total_items,
-            "type": ap.ActivityType.ORDERED_COLLECTION.value,
-            "first": {
-                "id": f"{BASE_URL}/{col_name}?cursor={start_cursor}",
-                "orderedItems": data,
-                "partOf": f"{BASE_URL}/{col_name}",
-                "totalItems": total_items,
-                "type": ap.ActivityType.ORDERED_COLLECTION_PAGE.value,
-            },
-        }
-
-        if len(data) == limit:
-            resp["first"]["next"] = (
-                BASE_URL + "/" + col_name + "?cursor=" + next_page_cursor
-            )
-
-        if first_page:
-            return resp["first"]
-
-        return resp
-
-    # If there's a cursor, then we return an OrderedCollectionPage
-    resp = {
-        "@context": ap.COLLECTION_CTX,
-        "type": ap.ActivityType.ORDERED_COLLECTION_PAGE.value,
-        "id": BASE_URL + "/" + col_name + "?cursor=" + start_cursor,
-        "totalItems": total_items,
-        "partOf": BASE_URL + "/" + col_name,
+    page = {
+        "id": f"{collection_id}?cursor={start_cursor}",
         "orderedItems": data,
+        "partOf": collection_id,
+        "totalItems": total_items,
+        "type": ap.ActivityType.ORDERED_COLLECTION_PAGE.value,
     }
     if len(data) == limit:
-        resp["next"] = BASE_URL + "/" + col_name + "?cursor=" + next_page_cursor
+        page["next"] = f"{collection_id}?cursor={next_page_cursor}"
 
+    # No cursor, this is the first page and we return an OrderedCollection
+    if not cursor:
+        if first_page:
+            return page
+        return {
+            "@context": ap.COLLECTION_CTX,
+            "id": collection_id,
+            "totalItems": total_items,
+            "type": ap.ActivityType.ORDERED_COLLECTION.value,
+            "first": page,
+        }
+
+    # If there's a cursor, then we return an OrderedCollectionPage
     # XXX(tsileo): implements prev with prev=<first item cursor>?
-
-    return resp
+    return {"@context": ap.COLLECTION_CTX, **page}

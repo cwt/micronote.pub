@@ -2,8 +2,10 @@ import mimetypes
 import os
 import subprocess
 import threading
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
+from importlib.metadata import version as package_version
+from pathlib import Path
 
 import requests
 import yaml
@@ -39,22 +41,22 @@ try:
 except ModuleNotFoundError:
     custom_cache_purge_hook = noop
 
-try:
-    if os.path.isdir('.git'):
-        VERSION = (
-            subprocess.check_output(
-                ["git", "describe", "--always"]
-            ).split()[0].decode("utf-8")
-        )
-    elif os.path.isdir('.hg'):
-        VERSION = (
-            subprocess.check_output(
-                ["hg", "id", "-i"]
-            ).split()[0].decode("utf-8")
-        )
+
+def _detect_version() -> str:
+    """Version string from the VCS checkout, or the installed package metadata."""
+    if Path(".git").is_dir():
+        command = ["git", "describe", "--always"]
+    elif Path(".hg").is_dir():
+        command = ["hg", "id", "-i"]
     else:
-        from importlib.metadata import version
-        VERSION = version("micronote-pub")
+        return package_version("micronote-pub")
+
+    result = subprocess.run(command, capture_output=True, text=True, check=True)
+    return result.stdout.split()[0]
+
+
+try:
+    VERSION = _detect_version()
 except Exception:
     VERSION = "-"
 
@@ -67,44 +69,44 @@ HEADERS = [
     "application/ld+json",
 ]
 
-with open(os.path.join(KEY_DIR, "me.yml")) as f:
-    conf = yaml.load(f, Loader=yaml.FullLoader)
+with (KEY_DIR / "me.yml").open() as f:
+    conf = yaml.safe_load(f)
 
-    USERNAME = conf["username"]
-    NAME = conf["name"]
-    DOMAIN = conf["domain"]
-    SCHEME = "https" if conf.get("https", True) else "http"
-    BASE_URL = SCHEME + "://" + DOMAIN
-    ID = BASE_URL
-    SUMMARY = conf["summary"]
-    ICON_URL = conf["icon_url"]
-    PASS = conf["pass"]
-    EXTRA_INBOXES = conf.get("extra_inboxes", [])
+USERNAME = conf["username"]
+NAME = conf["name"]
+DOMAIN = conf["domain"]
+SCHEME = "https" if conf.get("https", True) else "http"
+BASE_URL = f"{SCHEME}://{DOMAIN}"
+ID = BASE_URL
+SUMMARY = conf["summary"]
+ICON_URL = conf["icon_url"]
+PASS = conf["pass"]
+EXTRA_INBOXES = conf.get("extra_inboxes", [])
 
-    HIDE_FOLLOWING = conf.get("hide_following", True)
+HIDE_FOLLOWING = conf.get("hide_following", True)
 
-    # Theme-related config
-    theme_conf = conf.get("theme", {})
-    THEME_STYLE = ThemeStyle(theme_conf.get("style", DEFAULT_THEME_STYLE))
-    THEME_COLOR = theme_conf.get("color", DEFAULT_THEME_PRIMARY_COLOR[THEME_STYLE])
-    TIMEZONE = int(conf.get("timezone_hours", 0))
-    CDN_URL = conf.get("cdn_url", "")
-    IMAGE_MAX_SIZE = (
-        conf.get("image_max_size", {}).get("width", 1920),
-        conf.get("image_max_size", {}).get("height", 1920)
-    )
+# Theme-related config
+theme_conf = conf.get("theme", {})
+THEME_STYLE = ThemeStyle(theme_conf.get("style", DEFAULT_THEME_STYLE))
+THEME_COLOR = theme_conf.get("color", DEFAULT_THEME_PRIMARY_COLOR[THEME_STYLE])
+TIMEZONE = int(conf.get("timezone_hours", 0))
+CDN_URL = conf.get("cdn_url", "")
+IMAGE_MAX_SIZE = (
+    conf.get("image_max_size", {}).get("width", 1920),
+    conf.get("image_max_size", {}).get("height", 1920)
+)
 
 USER_AGENT = (
     f"{requests.utils.default_user_agent()} (micronote.pub/{VERSION}; +{BASE_URL})"
 )
 
 
-DATA_DIR = os.getenv("MICRONOTE_DATA_DIR", os.path.abspath("data"))
+DATA_DIR = Path(os.getenv("MICRONOTE_DATA_DIR", os.path.abspath("data")))
 
 
-def _db_path(db_name):
-    os.makedirs(DATA_DIR, exist_ok=True)
-    return os.path.join(DATA_DIR, f"{db_name}.db")
+def _db_path(db_name: str) -> Path:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    return DATA_DIR / f"{db_name}.db"
 
 
 _DB_CONNECTION = threading.local()
@@ -202,8 +204,8 @@ JWT = URLSafeTimedSerializer(JWT_SECRET)
 
 
 def _admin_jwt_token() -> str:
-    return JWT.dumps(# type: ignore
-        {"me": "ADMIN", "ts": datetime.now().timestamp()}
+    return JWT.dumps(
+        {"me": "ADMIN", "ts": datetime.now(UTC).timestamp()}
     )
 
 
