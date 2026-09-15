@@ -67,7 +67,12 @@ NOTE: dict[str, Any] = {
     "id": OBJECT_ID,
     "attributedTo": BASE_URL,
     "url": f"{BASE_URL}/note/{NOTE_ID}",
-    "content": '<p>Hello <a href="https://remote.example/page">world</a> 😀</p>',
+    "content": (
+        '<p>Hello <a href="https://remote.example/page">world</a> 😀</p>'
+        '<pre><code class="language-python">from math import pi\n'
+        "print(('%(n=%9d) pi=%.10f' % (10, pi)))\n"
+        "</code></pre>"
+    ),
     "published": NOW,
     "tag": [{"type": "Hashtag", "name": "#neuler", "href": f"{BASE_URL}/tags/neuler"}],
     "attachment": [
