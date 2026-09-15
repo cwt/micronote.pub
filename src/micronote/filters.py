@@ -1,3 +1,4 @@
+import re
 import urllib
 from datetime import UTC, datetime, timedelta
 from urllib.parse import urlparse
@@ -8,12 +9,14 @@ import timeago
 from active_boxes import activitypub as ap
 from active_boxes.activitypub import _to_list, get_backend
 from active_boxes.errors import ActivityGoneError, ActivityNotFoundError
+from bleach.sanitizer import ALLOWED_ATTRIBUTES as BLEACH_DEFAULT_ATTRIBUTES
 from dateutil import parser
 from flask import current_app
 from html2text import html2text
 
 from micronote.config import CDN_URL, ID, MEDIA_CACHE, TIMEZONE
 from micronote.utils.emoji import flexmoji
+from micronote.utils.highlight import highlight_code_blocks
 from micronote.utils.media import Kind
 
 blueprint = flask.Blueprint("filters", __name__, template_folder="templates")
@@ -47,10 +50,22 @@ ALLOWED_TAGS = [
     "h6",
 ]
 
+_CODE_CLASS_RE = re.compile(r"^language-[\w+.#-]+$")
+
+
+def _allow_code_class(tag, attr, value):
+    return all(_CODE_CLASS_RE.match(part) for part in value.split())
+
+
+ALLOWED_ATTRIBUTES = {
+    **BLEACH_DEFAULT_ATTRIBUTES,
+    "code": _allow_code_class,
+}
+
 
 def _clean_html(html):
     try:
-        return bleach.clean(html, tags=ALLOWED_TAGS)
+        return bleach.clean(html, tags=ALLOWED_TAGS, attributes=ALLOWED_ATTRIBUTES)
     except Exception:
         return ""
 
@@ -137,6 +152,11 @@ def clean(html):
 @blueprint.app_template_filter()
 def emojize(html):
     return flexmoji(html)
+
+
+@blueprint.app_template_filter()
+def highlight_code(html):
+    return highlight_code_blocks(html)
 
 
 @blueprint.app_template_filter()
