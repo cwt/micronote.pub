@@ -142,6 +142,21 @@ Verify: visual check of both themes; `curl` every PWA URL (manifest, icons, favi
   - Assert side effects in DB (counters, `meta` flags) and in rendered HTML/JSON feeds, not just HTTP 201s.
   - This replaces manual Mastodon testing for regressions; keep the two-docker `federation_test.py` for release confidence only.
 
+## Phase 7 — Packaging & Modern Layout Modernization (`pyproject.toml` + `src/` layout)
+
+- Adopt modern PEP 621 `pyproject.toml` source of truth.
+- Move application source code from flat root layout into standard `src/` layout (`src/micronote/`).
+- Package discovery with `[tool.setuptools.packages.find] where = ["src"]`.
+- Package data bundling for `templates/` and `static/`.
+- Entry points configured via `[project.scripts]` (`micronote-worker = "micronote.worker:main"`).
+- Tooling configuration consolidated into `pyproject.toml`:
+  - Ruff linter configuration
+  - Mypy type-checking configuration
+  - Pytest runner configuration (`testpaths = ["tests"]`, `pythonpath = ["src"]`)
+- Dynamic directory configuration with environment variable overrides (`MICRONOTE_CONFIG_DIR`, `MICRONOTE_DATA_DIR`).
+- Absolute package imports throughout (`from micronote import ...`, `from micronote.utils ...`).
+- Scripts (`scripts/ap_matrix.py`) and development workflows updated to use editable install (`pip install -e ".[dev]"`).
+
 ## Delete list (dead code, remove during migration)
 
 - `migrations.py` blueprint + its route registration: one-shot 2018-era routes (`migration1_step1…migration5`) referencing dropped collections (`DB.outbox/inbox/replies`) and `tasks.*.delay` — dangerous to keep behind only `login_required`.

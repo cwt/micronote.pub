@@ -6,12 +6,12 @@ services:
     volumes:
      - "${CONFIG_DIR}:/app/config"
      - "${DATA_DIR}:/app/data"
-     - "./static:/app/static"
+     - "./src/micronote/static:/app/src/micronote/static"
     environment:
      - MICRONOTE_DEBUG=1
   worker:
     image: 'micronote:latest'
-    command: 'python worker.py'
+    command: 'python -m micronote.worker'
     volumes:
      - "${CONFIG_DIR}:/app/config"
      - "${DATA_DIR}:/app/data"

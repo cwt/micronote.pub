@@ -4,7 +4,7 @@ from collections.abc import Callable
 
 from active_boxes.key import Key
 
-KEY_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "config")
+KEY_DIR = os.getenv("MICRONOTE_CONFIG_DIR", os.path.abspath("config"))
 
 
 def _new_key() -> str:

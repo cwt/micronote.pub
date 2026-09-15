@@ -12,8 +12,8 @@ from active_boxes.activitypub import DEFAULT_CTX
 from itsdangerous import URLSafeTimedSerializer
 from neosqlite import ASCENDING, Connection
 
-from utils.key import KEY_DIR, get_key, get_secret_key
-from utils.media import MediaCache
+from micronote.utils.key import KEY_DIR, get_key, get_secret_key
+from micronote.utils.media import MediaCache
 
 
 class ThemeStyle(Enum):
@@ -52,6 +52,9 @@ try:
                 ["hg", "id", "-i"]
             ).split()[0].decode("utf-8")
         )
+    else:
+        from importlib.metadata import version
+        VERSION = version("micronote-pub")
 except Exception:
     VERSION = "-"
 
@@ -96,10 +99,12 @@ USER_AGENT = (
 )
 
 
+DATA_DIR = os.getenv("MICRONOTE_DATA_DIR", os.path.abspath("data"))
+
+
 def _db_path(db_name):
-    data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
-    os.makedirs(data_dir, exist_ok=True)
-    return os.path.join(data_dir, f"{db_name}.db")
+    os.makedirs(DATA_DIR, exist_ok=True)
+    return os.path.join(DATA_DIR, f"{db_name}.db")
 
 
 _DB_CONNECTION = threading.local()

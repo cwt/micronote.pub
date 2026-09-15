@@ -44,8 +44,23 @@ dev = [
     "djlint",
 ]
 
-[tool.setuptools]
-py-modules = []
+[project.scripts]
+micronote-worker = "micronote.worker:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+micronote = [
+    "templates/**/*.html",
+    "templates/*.html",
+    "static/**/*",
+    "static/*",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
 
 [tool.ruff]
 line-length = 120

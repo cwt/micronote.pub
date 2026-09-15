@@ -10,9 +10,11 @@ def config():
     """Return the current config as a dict."""
     import yaml
 
-    with open(
-        os.path.join(os.path.dirname(__file__), "..", "config/me.yml"), "rb"
-    ) as f:
+    config_dir = os.getenv(
+        "MICRONOTE_CONFIG_DIR",
+        os.path.join(os.path.dirname(__file__), "..", "config"),
+    )
+    with open(os.path.join(config_dir, "me.yml"), "rb") as f:
         yield yaml.safe_load(f)
 
 

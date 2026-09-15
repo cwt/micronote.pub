@@ -7,6 +7,7 @@ RUN apt-get update \
 WORKDIR /app
 
 COPY pyproject.toml README.md .
+COPY src/ src/
 RUN pip install --no-cache-dir .
 
 COPY . .
@@ -16,6 +17,6 @@ VOLUME /app/data
 
 EXPOSE 5005/tcp
 
-ENV FLASK_APP=app.py
+ENV FLASK_APP=micronote.app
 
 CMD ["./run.sh"]

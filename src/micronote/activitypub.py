@@ -21,7 +21,7 @@ from flask import abort
 from html2text import html2text
 from neosqlite.objectid import ObjectId
 
-from config import BASE_URL, DB, DB_NAME, EXTRA_INBOXES, ID, ME, USER_AGENT, USERNAME, create_db_client
+from micronote.config import BASE_URL, DB, DB_NAME, EXTRA_INBOXES, ID, ME, USER_AGENT, USERNAME, create_db_client
 
 logger = logging.getLogger(__name__)
 

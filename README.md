@@ -200,19 +200,19 @@ The most convenient way to hack on micronote.pub is to run the server locally, a
 
 ```shell
 # One-time setup
-$ pip install ".[dev]"
+$ pip install -e ".[dev]"
 # Run the background worker (the dev compose only starts the worker)
 $ docker-compose -f docker-compose-dev.yml up -d
 # Run the server locally
-$ FLASK_DEBUG=1 MICRONOTE_DEBUG=1 FLASK_APP=app.py flask run -p 5005 --with-threads
+$ FLASK_DEBUG=1 MICRONOTE_DEBUG=1 FLASK_APP=micronote.app flask run -p 5005 --with-threads
 # ...or skip the worker and run jobs inline instead:
-$ MICRONOTE_TASK_EAGER=1 FLASK_DEBUG=1 MICRONOTE_DEBUG=1 FLASK_APP=app.py flask run -p 5005 --with-threads
+$ MICRONOTE_TASK_EAGER=1 FLASK_DEBUG=1 MICRONOTE_DEBUG=1 FLASK_APP=micronote.app flask run -p 5005 --with-threads
 ```
 
 Local runs need indexes once (Docker does this via `run.sh`):
 
 ```shell
-$ python -c "import config; config.create_indexes()"
+$ python -c "from micronote import config; config.create_indexes()"
 ```
 
 Use the fixture identity for local work (no need to invent one):
@@ -232,7 +232,7 @@ and eager mode keeps everything deterministic:
 ```shell
 # terminal 1: your instance (eager = no worker needed)
 $ MICRONOTE_TASK_EAGER=1 FLASK_DEBUG=1 MICRONOTE_DEBUG=1 \
-  FLASK_APP=app.py flask run -p 5005 --with-threads
+  FLASK_APP=micronote.app flask run -p 5005 --with-threads
 
 # terminal 2: the fake remote node
 $ python scripts/stub_remote.py --port 5006
@@ -262,7 +262,7 @@ actor, outbox follows keyed by object, first row kept, undone rows
 left alone:
 
 ```shell
-$ python dedup.py
+$ python -m micronote.dedup
 ```
 
 Stop the web/worker processes first so nothing writes mid-cleanup.

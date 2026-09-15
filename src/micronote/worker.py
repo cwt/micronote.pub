@@ -17,13 +17,21 @@ from active_boxes.errors import ActivityGoneError, ActivityNotFoundError, BadAct
 from active_boxes.linked_data_sig import generate_signature
 from requests.exceptions import HTTPError
 
-import activitypub
-import tasks
-from config import BASE_URL, DB, ID, KEY, MEDIA_CACHE, USER_AGENT, create_db_connection
-from tasks import MAX_RETRIES, MY_PERSON, STATUS_FAILED, STATUS_PENDING, STATUS_PROCESSING, back, enqueue_job, log
-from utils import opengraph
-from utils.delivery import sign_delivery_request
-from utils.media import Kind
+from micronote import activitypub, tasks
+from micronote.config import BASE_URL, DB, ID, KEY, MEDIA_CACHE, USER_AGENT, create_db_connection
+from micronote.tasks import (
+    MAX_RETRIES,
+    MY_PERSON,
+    STATUS_FAILED,
+    STATUS_PENDING,
+    STATUS_PROCESSING,
+    back,
+    enqueue_job,
+    log,
+)
+from micronote.utils import opengraph
+from micronote.utils.delivery import sign_delivery_request
+from micronote.utils.media import Kind
 
 RESUME_TOKEN_ID = "jobs_watch"
 SWEEP_INTERVAL_SECONDS = 60

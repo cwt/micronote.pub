@@ -1,7 +1,7 @@
 import flask
 from flask import Response
 
-import activitypub
+from micronote import activitypub
 
 blueprint = flask.Blueprint('feeds', __name__, template_folder='templates')
 

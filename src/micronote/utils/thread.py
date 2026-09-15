@@ -1,6 +1,6 @@
 from flask import current_app
 
-from config import DB
+from micronote.config import DB
 
 
 def published_of(doc):

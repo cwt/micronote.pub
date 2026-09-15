@@ -3,12 +3,12 @@
 
 from active_boxes.activitypub import ActivityType
 
-from activitypub import Box
-from config import DB
+from micronote.activitypub import Box
+from micronote.config import DB
 
 
 def remove_duplicate_follows(box: str, field: str, label: str) -> None:
-    seen = list()  # type: List[str]
+    seen: list[str] = []
     query = {"box": box, "type": ActivityType.FOLLOW.value, "meta.undo": False}
     for doc in DB.activities.find(query):
         target = doc["activity"][field]

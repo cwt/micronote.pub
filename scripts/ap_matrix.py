@@ -20,14 +20,16 @@ import time
 import requests
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, REPO_ROOT)
+SRC_DIR = os.path.join(REPO_ROOT, "src")
+if SRC_DIR not in sys.path:
+    sys.path.insert(0, SRC_DIR)
 
 from active_boxes.key import Key  # noqa: E402
 
-from config import DB  # noqa: E402
-from utils.delivery import sign_delivery_request  # noqa: E402
+from micronote.config import DB  # noqa: E402
+from micronote.utils.delivery import sign_delivery_request  # noqa: E402
 
-FAILURES = []
+FAILURES: list[str] = []
 
 
 def check(name, condition, detail=""):

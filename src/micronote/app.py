@@ -16,16 +16,9 @@ from flask import jsonify as flask_jsonify
 from flask_wtf.csrf import CSRFProtect
 from itsdangerous import BadSignature
 
-import activitypub
-import admin
-import api
-import config
-import feeds
-import filters
-import indieauth
-import tasks
-from activitypub import Box, embed_collection
-from config import (
+from micronote import activitypub, admin, api, config, feeds, filters, indieauth, tasks
+from micronote.activitypub import Box, embed_collection
+from micronote.config import (
     BASE_URL,
     CDN_URL,
     DB,
@@ -43,11 +36,11 @@ from config import (
     USERNAME,
     VERSION,
 )
-from utils.headers import noindex
-from utils.key import get_secret_key
-from utils.login import login_required
-from utils.query import paginated_query
-from utils.thread import _build_thread
+from micronote.utils.headers import noindex
+from micronote.utils.key import get_secret_key
+from micronote.utils.login import login_required
+from micronote.utils.query import paginated_query
+from micronote.utils.thread import _build_thread
 
 back = activitypub.MicroblogPubBackend()
 ap.use_backend(back)
@@ -304,7 +297,7 @@ def authorize_follow():
 def webauthn_register():
     from fido2.webauthn import PublicKeyCredentialUserEntity
 
-    from utils.webauthn import (
+    from micronote.utils.webauthn import (
         clear_state,
         credential_options,
         get_server,

@@ -8,7 +8,7 @@ steps:
       - pip install ".[dev]"
       - ruff check .
       - mypy .
-      - djlint --lint templates
+      - djlint --lint src/micronote/templates
   - name: test
     image: python:3.11-slim
     commands:

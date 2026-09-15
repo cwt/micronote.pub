@@ -4,9 +4,9 @@ from datetime import UTC, datetime
 
 from active_boxes import activitypub as ap
 
-import activitypub
-from activitypub import Box
-from config import BASE_URL, DB, ID, ME
+from micronote import activitypub
+from micronote.activitypub import Box
+from micronote.config import BASE_URL, DB, ID, ME
 
 log = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ def enqueue_job(job_type, iri=None, payload=None, to=None, also_cache_attachment
     DB.jobs.insert_one(job)
     log.info(f"enqueued {job_type} iri={iri}")
     if TASK_EAGER:
-        from worker import drain_jobs
+        from micronote.worker import drain_jobs
         drain_jobs()
     return job
 

@@ -9,13 +9,13 @@ from active_boxes.errors import ActivityGoneError, ActivityNotFoundError, BadAct
 from flask import abort, current_app, redirect, render_template, request, session, url_for
 from flask_wtf.csrf import CSRFProtect
 
-from activitypub import Box
-from config import BASE_URL, DB, DOMAIN, PASS, USERNAME
-from utils.headers import noindex
-from utils.login import login_required, safe_next_url
-from utils.lookup import lookup
-from utils.query import paginated_query
-from utils.thread import _build_thread
+from micronote.activitypub import Box
+from micronote.config import BASE_URL, DB, DOMAIN, PASS, USERNAME
+from micronote.utils.headers import noindex
+from micronote.utils.login import login_required, safe_next_url
+from micronote.utils.lookup import lookup
+from micronote.utils.query import paginated_query
+from micronote.utils.thread import _build_thread
 
 blueprint = flask.Blueprint('admin', __name__, template_folder='templates')
 csrf = CSRFProtect(current_app)
@@ -227,7 +227,7 @@ def admin_logout():
 @blueprint.route("/login", methods=["POST", "GET"])
 @noindex
 def admin_login():
-    from utils.webauthn import (
+    from micronote.utils.webauthn import (
         clear_state,
         credential_options,
         get_server,

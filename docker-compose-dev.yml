@@ -3,7 +3,7 @@
 services:
   worker:
     image: micronote:latest
-    command: 'python worker.py'
+    command: 'python -m micronote.worker'
     volumes:
      - "./config:/app/config"
      - "./data:/app/data"

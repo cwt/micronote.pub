@@ -12,12 +12,23 @@ from flask_wtf.csrf import CSRFProtect
 from itsdangerous import BadSignature
 from werkzeug.utils import secure_filename
 
-import activitypub
-import tasks
-from activitypub import Box
-from config import ADMIN_API_KEY, BASE_URL, CDN_URL, DB, DEBUG_MODE, ID, IMAGE_MAX_SIZE, JWT, ME, MEDIA_CACHE, _drop_db
-from utils.emoji import flexmoji
-from utils.login import login_required
+from micronote import activitypub, tasks
+from micronote.activitypub import Box
+from micronote.config import (
+    ADMIN_API_KEY,
+    BASE_URL,
+    CDN_URL,
+    DB,
+    DEBUG_MODE,
+    ID,
+    IMAGE_MAX_SIZE,
+    JWT,
+    ME,
+    MEDIA_CACHE,
+    _drop_db,
+)
+from micronote.utils.emoji import flexmoji
+from micronote.utils.login import login_required
 
 blueprint = flask.Blueprint('api', __name__, template_folder='templates')
 csrf = CSRFProtect(current_app)

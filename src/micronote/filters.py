@@ -12,9 +12,9 @@ from dateutil import parser
 from flask import current_app
 from html2text import html2text
 
-from config import CDN_URL, ID, MEDIA_CACHE, TIMEZONE
-from utils.emoji import flexmoji
-from utils.media import Kind
+from micronote.config import CDN_URL, ID, MEDIA_CACHE, TIMEZONE
+from micronote.utils.emoji import flexmoji
+from micronote.utils.media import Kind
 
 blueprint = flask.Blueprint('filters', __name__, template_folder='templates')
 

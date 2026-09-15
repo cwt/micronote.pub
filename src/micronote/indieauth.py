@@ -10,8 +10,8 @@ from flask import Response, abort, current_app, redirect, render_template, reque
 from itsdangerous import BadSignature
 from neosqlite import DESCENDING
 
-from config import DB, ID, JWT
-from utils.login import login_required
+from micronote.config import DB, ID, JWT
+from micronote.utils.login import login_required
 
 blueprint = flask.Blueprint('indieauth', __name__, template_folder='templates')
 

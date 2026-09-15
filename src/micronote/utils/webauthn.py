@@ -10,7 +10,7 @@ import base64
 from fido2.server import Fido2Server
 from fido2.webauthn import AttestedCredentialData
 
-from config import DB, DOMAIN, USERNAME
+from micronote.config import DB, DOMAIN, USERNAME
 
 
 def _b64encode(raw: bytes) -> str:

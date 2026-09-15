@@ -1,2 +1,2 @@
 #!/bin/bash
-exec python worker.py
+exec python -m micronote.worker
