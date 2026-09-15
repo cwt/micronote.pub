@@ -79,6 +79,9 @@ def admin_lookup():
         if submitted:
             try:
                 data = lookup(submitted)
+            except ap.Error:
+                current_app.logger.warning(f"lookup not found for {submitted!r}")
+                error = f"could not find {submitted}"
             except Exception as exc:
                 current_app.logger.exception(f"lookup failed for {submitted!r}")
                 error = str(exc) or exc.__class__.__name__
@@ -246,28 +249,30 @@ def admin_login():
 
     credentials = stored_credentials()
     webauthn_enabled = bool(credentials)
+    login_error = None
     if request.method == "POST":
         csrf.protect()
         pwd = request.form.get("pass")
         username = request.form.get("username")
         if not (pwd and username == USERNAME and verify_pass(pwd)):
-            abort(401)
-
-        if credentials:
+            login_error = "Incorrect username or password."
+        elif credentials:
             assertion = json.loads(request.form.get("assertion"))
             try:
                 credential = get_server().authenticate_complete(load_state("login"), credentials, assertion)
             except ValueError as exc:
                 current_app.logger.debug(f"webauthn failed: {exc}")
-                abort(401)
+                login_error = "Security key authentication failed."
+            else:
+                if credential.sign_count != 0:
+                    update_sign_count(credential.credential_id, credential.sign_count)
             finally:
                 clear_state("login")
-            if credential.sign_count != 0:
-                update_sign_count(credential.credential_id, credential.sign_count)
 
-        session.clear()
-        session["logged_in"] = True
-        return redirect(safe_next_url(request.args.get("redirect"), url_for(".admin_notifications")))
+        if not login_error:
+            session.clear()
+            session["logged_in"] = True
+            return redirect(safe_next_url(request.args.get("redirect"), url_for(".admin_notifications")))
 
     options = None
     if credentials:
@@ -275,4 +280,4 @@ def admin_login():
         save_state("login", state)
         options = credential_options(options)
 
-    return render_template("login.html", webauthn_enabled=webauthn_enabled, options=options)
+    return render_template("login.html", webauthn_enabled=webauthn_enabled, options=options, login_error=login_error)

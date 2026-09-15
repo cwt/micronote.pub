@@ -77,6 +77,11 @@ else:
     root_logger.handlers = gunicorn_logger.handlers
     root_logger.setLevel(gunicorn_logger.level)
 
+# active_boxes logs a full traceback at ERROR for every failed fetch, including
+# the expected 404 when a handle cannot be resolved. That drowns the logs, so
+# silence its logger here. Our app handles lookup failures in the UI instead.
+logging.getLogger("active_boxes").setLevel(logging.CRITICAL)
+
 
 @app.context_processor
 def inject_config():

@@ -16,10 +16,19 @@
 	margin: auto;
 	display: inline;
 }
+
+#login-error {
+	color: #b00020;
+	font-weight: bold;
+	margin-bottom: 1rem;
+}
 </style>
 {% endblock %}
 {% block content %}
 <div id="login-container">
+	{% if login_error %}
+		<p id="login-error">{{ login_error }}</p>
+	{% endif %}
 	<form id="login-form" method="POST">
 		<input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
 		<input type="text" name="username" value="{{ config.USERNAME }}" autocomplete="username" readonly>
