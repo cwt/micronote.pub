@@ -1,0 +1,14 @@
+{
+  "name": "micronote-pub-tools",
+  "private": true,
+  "description": "Node-based CSS and rendered-HTML linters (dev tooling, not part of the Python package)",
+  "scripts": {
+    "lint:css": "stylelint \"src/micronote/static/**/*.css\"",
+    "lint:html": "html-validate --config .htmlvalidate.json \".html-render/*.html\""
+  },
+  "devDependencies": {
+    "html-validate": "^11.15.0",
+    "stylelint": "^17.15.0",
+    "stylelint-config-standard": "^40.0.0"
+  }
+}

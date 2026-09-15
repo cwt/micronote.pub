@@ -215,10 +215,7 @@ a:hover {
 #container {
   width: 90%;
   max-width: 720px;
-  margin-top: 50px;
-  margin-bottom: 30px;
-  margin-left: auto;
-  margin-right: auto;
+  margin: 50px auto 30px;
 }
 
 #container #notes {
@@ -296,8 +293,7 @@ a:hover {
 .note .bottom-bar {
   margin-top: 5px;
   display: flex;
-  flex-direction: row-reverse;
-  flex-wrap: wrap-reverse;
+  flex-flow: row-reverse wrap-reverse;
 }
 
 .note .img-attachment {
@@ -364,10 +360,7 @@ a:hover {
 .bar-item {
   background: var(--color-menu-background);
   color: var(--color-light);
-  margin-top: 1px;
-  margin-bottom: 0;
-  margin-left: 2px;
-  margin-right: 0;
+  margin: 1px 0 0 2px;
   border-radius: 2px;
   padding: 1px 6px;
 }

@@ -1,0 +1,13 @@
+{
+  "extends": ["stylelint-config-standard"],
+  "ignoreFiles": [
+    "src/micronote/static/css/BlobMoji.css",
+    "src/micronote/static/css/FreeSerif2.css",
+    "src/micronote/static/css/Mali.css",
+    "src/micronote/static/css/Quivira.css",
+    "src/micronote/static/css/pure-min.css"
+  ],
+  "rules": {
+    "no-descending-specificity": null
+  }
+}

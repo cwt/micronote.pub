@@ -9,6 +9,14 @@ steps:
       - ruff check .
       - mypy .
       - djlint --lint src/micronote/templates
+      - cp tests/fixtures/me.yml config/me.yml
+      - python scripts/render_html_fixtures.py --out .html-render
+  - name: lint-web
+    image: node:22-slim
+    commands:
+      - npm ci
+      - npm run lint:css
+      - npm run lint:html
   - name: test
     image: python:3.11-slim
     commands:

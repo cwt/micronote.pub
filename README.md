@@ -221,6 +221,25 @@ Use the fixture identity for local work (no need to invent one):
 $ cp tests/fixtures/me.yml config/me.yml
 ```
 
+### Linting
+
+Python, templates, CSS and the rendered HTML are all checked from the
+repo root:
+
+```shell
+# Python + Jinja templates (pip install -e ".[dev]" first)
+$ make lint
+
+# CSS + rendered HTML (needs Node; `make lint-web` installs the
+# npm dev dependencies itself)
+$ make lint-web
+```
+
+`make lint-web` renders every HTML page with seeded fixture data into
+`.html-render/` — the DB lives in a throwaway temp directory, so your
+`data/` is never touched — then runs `stylelint` on the stylesheets
+and `html-validate` on the rendered pages. The same checks run in CI.
+
 ### Simulating a remote node locally
 
 `scripts/stub_remote.py` is a fake second ActivityPub server and

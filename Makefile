@@ -1,5 +1,21 @@
 PYTHON=python3
 IMAGE=micronote:latest
+HTML_RENDER_DIR=.html-render
+
+.PHONY: lint lint-web
+
+lint:
+	ruff check .
+	mypy .
+	djlint --lint src/micronote/templates
+
+node_modules: package.json package-lock.json
+	npm ci
+
+lint-web: node_modules
+	$(PYTHON) scripts/render_html_fixtures.py --out $(HTML_RENDER_DIR)
+	npm run lint:css
+	npm run lint:html
 
 password:
 	$(PYTHON) -c "import bcrypt; from getpass import getpass; print(bcrypt.hashpw(getpass().encode('utf-8'), bcrypt.gensalt()).decode('utf-8'))"
