@@ -427,7 +427,7 @@ class MicroblogPubBackend(Backend):
 
         self.DB.activities.update_many(
             {"meta.object.id": obj.id},
-            {"$set": {"meta.undo": True, "meta.exta": "object deleted"}},
+            {"$set": {"meta.undo": True, "meta.extra": "object deleted"}},
         )
 
         self._handle_replies_delete(as_actor, obj.inReplyTo)

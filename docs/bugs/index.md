@@ -21,7 +21,7 @@ This index catalogs verified software defects, security vulnerabilities, and alg
 | --- | --- | --- | --- | --- |
 | [BUG-001](./001.md) | String Splitting in IndieAuth Scopes Corrupts Authorization Tokens | High | IndieAuth | Resolved |
 | [BUG-002](./002.md) | Unhandled TypeError and HTTP 500 Crash During WebAuthn Login | High | Admin / Auth | Resolved |
-| [BUG-003](./003.md) | Typo in Database Field Name meta.exta in outbox_delete | Medium | ActivityPub Backend | Open |
+| [BUG-003](./003.md) | Typo in Database Field Name meta.exta in outbox_delete | Medium | ActivityPub Backend | Resolved |
 | [BUG-004](./004.md) | Open Redirect Vulnerability via Protocol-Relative URL Bypass in safe_next_url | High | Session / Security | Open |
 | [BUG-005](./005.md) | Non-Deterministic DOM Element IDs and In-Page Anchors via Python hash() | Medium | Template Filters | Open |
 | [BUG-006](./006.md) | Follower Deduplication Script Crashes on Embedded ActivityPub Dict Objects | Low | CLI Maintenance | Open |
