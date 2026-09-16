@@ -19,3 +19,4 @@ Welcome to the technical knowledge base for `micronote.pub`.
 
 - [Defect Tracking & Bug Reports](./bugs/index.md): Standardized OKF defect reports for discovered security, logic, and performance bugs.
 - [Modernization & Migration Plan](./migration.md): Engineering roadmap and architecture documentation covering the migration from MongoDB, RabbitMQ, and Celery to NeoSQLite, active-boxes, and watch streams.
+- [BlobMoji Font Subsetting & Upgrade Runbook](./blobmoji-font-subsetting.md): Operational guide, technical background, and automation for slicing BlobMoji2 COLRv1 fonts into chunked WOFF2 web font subsets.
