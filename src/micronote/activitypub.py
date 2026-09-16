@@ -12,6 +12,8 @@ from active_boxes.activitypub import _to_list
 from active_boxes.backend import Backend
 from active_boxes.errors import (
     ActivityGoneError,
+    ActivityNotFoundError,
+    ActivityUnavailableError,
     Error,
     NotAnActivityError,
 )
@@ -65,6 +67,41 @@ def _actor_to_meta(actor: ap.BaseActivity, with_inbox: bool = False) -> dict[str
     logger.debug(f"meta={meta}")
 
     return meta
+
+
+def _safe_object_actor_meta(obj: ap.BaseActivity | ap.BaseObject) -> dict[str, Any] | None:
+    """Safely extracts actor metadata for an object, falling back to attributedTo if remote fetch fails."""
+    actor_meta = None
+    try:
+        actor = obj.get_actor_sync()
+        if actor:
+            actor_meta = _actor_to_meta(actor)
+    except (ActivityGoneError, ActivityNotFoundError, NotAnActivityError):
+        logger.warning(f"object actor for {obj!r} gone or not found")
+    except (Error, Exception) as err:
+        logger.warning(f"unable to fetch object actor for {obj!r}: {err}")
+
+    if not actor_meta:
+        attributed_to = getattr(obj, "attributedTo", None)
+        if not attributed_to and hasattr(obj, "_data") and isinstance(obj._data, dict):
+            attributed_to = obj._data.get("attributedTo") or obj._data.get("actor")
+
+        if isinstance(attributed_to, list) and attributed_to:
+            attributed_to = attributed_to[0]
+
+        if isinstance(attributed_to, dict):
+            attributed_to = attributed_to.get("id") or attributed_to.get("url")
+
+        if attributed_to and isinstance(attributed_to, str):
+            actor_meta = {
+                "id": attributed_to,
+                "url": attributed_to,
+                "icon": None,
+                "name": attributed_to,
+                "preferredUsername": None,
+                "emojis": {},
+            }
+    return actor_meta
 
 
 def _remove_id(doc: ap.ObjectType) -> ap.ObjectType:
@@ -294,7 +331,11 @@ class MicroblogPubBackend(Backend):
 
     @ensure_it_is_me
     def inbox_like(self, as_actor: ap.Person, like: ap.Like) -> None:
-        obj = like.get_object_sync()
+        try:
+            obj = like.get_object_sync()
+        except (Error, Exception) as err:
+            logger.warning(f"failed to fetch object for inbox like {like.id}: {err}")
+            return
         # Update the meta counter if the object is published by the server
         self.DB.activities.update_one(
             {"box": Box.OUTBOX.value, "activity.object.id": obj.id},
@@ -303,17 +344,26 @@ class MicroblogPubBackend(Backend):
 
     @ensure_it_is_me
     def inbox_undo_like(self, as_actor: ap.Person, like: ap.Like) -> None:
-        obj = like.get_object_sync()
-        # Update the meta counter if the object is published by the server
-        self.DB.activities.update_one(
-            {"box": Box.OUTBOX.value, "activity.object.id": obj.id},
-            {"$inc": {"meta.count_like": -1}},
-        )
+        try:
+            obj = like.get_object_sync()
+        except (Error, Exception) as err:
+            logger.warning(f"failed to fetch object for inbox undo like {like.id}: {err}")
+            obj = None
+        if obj:
+            # Update the meta counter if the object is published by the server
+            self.DB.activities.update_one(
+                {"box": Box.OUTBOX.value, "activity.object.id": obj.id},
+                {"$inc": {"meta.count_like": -1}},
+            )
         self.DB.activities.update_one({"remote_id": like.id}, {"$set": {"meta.undo": True}})
 
     @ensure_it_is_me
     def outbox_like(self, as_actor: ap.Person, like: ap.Like) -> None:
-        obj = like.get_object_sync()
+        try:
+            obj = like.get_object_sync()
+        except (Error, Exception) as err:
+            logger.warning(f"failed to fetch object for outbox like {like.id}: {err}")
+            return
         self.DB.activities.update_one(
             {"activity.object.id": obj.id},
             {"$inc": {"meta.count_like": 1}, "$set": {"meta.liked": like.id}},
@@ -321,11 +371,16 @@ class MicroblogPubBackend(Backend):
 
     @ensure_it_is_me
     def outbox_undo_like(self, as_actor: ap.Person, like: ap.Like) -> None:
-        obj = like.get_object_sync()
-        self.DB.activities.update_one(
-            {"activity.object.id": obj.id},
-            {"$inc": {"meta.count_like": -1}, "$set": {"meta.liked": False}},
-        )
+        try:
+            obj = like.get_object_sync()
+        except (Error, Exception) as err:
+            logger.warning(f"failed to fetch object for outbox undo like {like.id}: {err}")
+            obj = None
+        if obj:
+            self.DB.activities.update_one(
+                {"activity.object.id": obj.id},
+                {"$inc": {"meta.count_like": -1}, "$set": {"meta.liked": False}},
+            )
         self.DB.activities.update_one({"remote_id": like.id}, {"$set": {"meta.undo": True}})
 
     @ensure_it_is_me
@@ -334,49 +389,71 @@ class MicroblogPubBackend(Backend):
         # or remove it?
         try:
             obj = announce.get_object_sync()
-        except NotAnActivityError:
-            logger.exception(
-                f"received an Annouce referencing an OStatus notice ({announce._data['object']}), dropping the message"
+        except (ActivityGoneError, ActivityNotFoundError, NotAnActivityError):
+            logger.warning(
+                f"received an Announce referencing missing/gone object ({announce._data.get('object')}), dropping message"
             )
             return
+        except (ActivityUnavailableError, Error, Exception) as err:
+            logger.warning(f"failed to fetch object for Announce {announce.id}: {err}, dropping message")
+            return
+
+        actor_meta = _safe_object_actor_meta(obj)
+        update_payload: dict[str, Any] = {
+            "meta.object": obj.to_dict(embed=True),
+        }
+        if actor_meta:
+            update_payload["meta.object_actor"] = actor_meta
 
         self.DB.activities.update_one(
             {"remote_id": announce.id},
-            {
-                "$set": {
-                    "meta.object": obj.to_dict(embed=True),
-                    "meta.object_actor": _actor_to_meta(obj.get_actor_sync()),
-                }
-            },
+            {"$set": update_payload},
         )
         self.DB.activities.update_one({"activity.object.id": obj.id}, {"$inc": {"meta.count_boost": 1}})
 
     @ensure_it_is_me
     def inbox_undo_announce(self, as_actor: ap.Person, announce: ap.Announce) -> None:
-        obj = announce.get_object_sync()
-        # Update the meta counter if the object is published by the server
-        self.DB.activities.update_one({"activity.object.id": obj.id}, {"$inc": {"meta.count_boost": -1}})
+        try:
+            obj = announce.get_object_sync()
+        except (Error, Exception) as err:
+            logger.warning(f"failed to fetch object for inbox undo announce {announce.id}: {err}")
+            obj = None
+        if obj:
+            # Update the meta counter if the object is published by the server
+            self.DB.activities.update_one({"activity.object.id": obj.id}, {"$inc": {"meta.count_boost": -1}})
         self.DB.activities.update_one({"remote_id": announce.id}, {"$set": {"meta.undo": True}})
 
     @ensure_it_is_me
     def outbox_announce(self, as_actor: ap.Person, announce: ap.Announce) -> None:
-        obj = announce.get_object_sync()
+        try:
+            obj = announce.get_object_sync()
+        except (Error, Exception) as err:
+            logger.warning(f"failed to fetch object for outbox Announce {announce.id}: {err}")
+            return
+
+        actor_meta = _safe_object_actor_meta(obj)
+        update_payload: dict[str, Any] = {
+            "meta.object": obj.to_dict(embed=True),
+        }
+        if actor_meta:
+            update_payload["meta.object_actor"] = actor_meta
+
         self.DB.activities.update_one(
             {"remote_id": announce.id},
-            {
-                "$set": {
-                    "meta.object": obj.to_dict(embed=True),
-                    "meta.object_actor": _actor_to_meta(obj.get_actor_sync()),
-                }
-            },
+            {"$set": update_payload},
         )
 
         self.DB.activities.update_one({"activity.object.id": obj.id}, {"$set": {"meta.boosted": announce.id}})
 
     @ensure_it_is_me
     def outbox_undo_announce(self, as_actor: ap.Person, announce: ap.Announce) -> None:
-        obj = announce.get_object_sync()
-        self.DB.activities.update_one({"activity.object.id": obj.id}, {"$set": {"meta.boosted": False}})
+        try:
+            obj = announce.get_object_sync()
+        except (Error, Exception) as err:
+            logger.warning(f"failed to fetch object for outbox undo announce {announce.id}: {err}")
+            obj = None
+        if obj:
+            self.DB.activities.update_one({"activity.object.id": obj.id}, {"$set": {"meta.boosted": False}})
         self.DB.activities.update_one({"remote_id": announce.id}, {"$set": {"meta.undo": True}})
 
     @ensure_it_is_me

@@ -116,10 +116,30 @@ def admin_lookup():
             else:
                 if data.has_type(ActivityType.ANNOUNCE):
                     obj = data.get_object_sync()
+                    actor_meta = None
+                    try:
+                        actor = obj.get_actor_sync()
+                        if actor:
+                            actor_meta = actor.to_dict()
+                    except Exception:
+                        pass
+                    if not actor_meta:
+                        attributed_to = getattr(obj, "attributedTo", None)
+                        if attributed_to:
+                            actor_meta = {"id": attributed_to, "name": attributed_to}
+
+                    announce_actor = None
+                    try:
+                        a = data.get_actor_sync()
+                        if a:
+                            announce_actor = a.to_dict()
+                    except Exception:
+                        pass
+
                     meta = {
                         "object": obj.to_dict(),
-                        "object_actor": obj.get_actor_sync().to_dict(),
-                        "actor": data.get_actor_sync().to_dict(),
+                        "object_actor": actor_meta,
+                        "actor": announce_actor,
                     }
 
         current_app.logger.debug(data)

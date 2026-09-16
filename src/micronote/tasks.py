@@ -17,7 +17,7 @@ ap.use_backend(back)
 
 MY_PERSON = ap.Person(**ME)
 
-MAX_RETRIES = 9
+MAX_RETRIES = int(os.getenv("MICRONOTE_MAX_RETRIES", "3"))
 
 STATUS_PENDING = "pending"
 STATUS_PROCESSING = "processing"

@@ -6,6 +6,7 @@ claimed with find_one_and_update, retried with exponential backoff.
 
 import json
 import logging
+import os
 import random
 import time
 from datetime import UTC, datetime, timedelta
@@ -36,12 +37,13 @@ from micronote.tasks import (
     enqueue_job,
     log,
 )
-from micronote.utils import opengraph
+from micronote.utils import opengraph, strtobool
 from micronote.utils.delivery import sign_delivery_request
 from micronote.utils.media import Kind
 
 RESUME_TOKEN_ID = "jobs_watch"
 SWEEP_INTERVAL_SECONDS = 60
+REMOVE_FAILED_JOBS = strtobool(os.getenv("MICRONOTE_REMOVE_FAILED_JOBS", "false"))
 
 
 def process_new_activity(job) -> None:
@@ -190,27 +192,7 @@ def cache_object(job) -> None:
             log.warning(f"remote object for {iri} unavailable ({err}), skipping object cache")
             return
 
-        actor_meta = None
-        try:
-            actor = obj.get_actor_sync()
-            if actor:
-                actor_meta = activitypub._actor_to_meta(actor)
-        except (ActivityGoneError, ActivityNotFoundError, NotAnActivityError):
-            log.warning(f"object actor for {obj!r} gone or not found")
-        except (Error, Exception) as err:
-            log.warning(f"unable to fetch object actor for {obj!r}: {err}")
-
-        if not actor_meta:
-            attributed_to = getattr(obj, "attributedTo", None)
-            if attributed_to:
-                actor_meta = {
-                    "id": attributed_to,
-                    "url": attributed_to,
-                    "icon": None,
-                    "name": attributed_to,
-                    "preferredUsername": None,
-                    "emojis": {},
-                }
+        actor_meta = activitypub._safe_object_actor_meta(obj)
 
         update_payload = {
             "meta.object": obj.to_dict(embed=True),
@@ -351,6 +333,8 @@ def cache_attachments(job) -> None:
 
     except (ActivityGoneError, ActivityNotFoundError, NotAnActivityError):
         log.exception(f"dropping activity {iri}, no attachment caching")
+    except ActivityUnavailableError as err:
+        log.warning(f"remote activity {iri} unavailable ({err}), skipping cache_attachments without retry")
     except Exception:
         log.exception(f"failed to cache attachments for {iri}")
         raise
@@ -390,6 +374,8 @@ def finish_post_to_inbox(job) -> None:
             log.exception("failed to invalidate cache")
     except (ActivityGoneError, ActivityNotFoundError, NotAnActivityError):
         log.exception("no retry")
+    except ActivityUnavailableError as err:
+        log.warning(f"remote activity {iri} unavailable ({err}), skipping finish_post_to_inbox without retry")
     except Exception:
         log.exception(f"failed to finish post to inbox for {iri}")
         raise
@@ -433,6 +419,8 @@ def finish_post_to_outbox(job) -> None:
             enqueue_job("post_to_remote_inbox", payload=payload, to=recp)
     except (ActivityGoneError, ActivityNotFoundError):
         log.exception("no retry")
+    except ActivityUnavailableError as err:
+        log.warning(f"remote activity {iri} unavailable ({err}), skipping finish_post_to_outbox without retry")
     except Exception:
         log.exception(f"failed to post to remote inbox for {iri}")
         raise
@@ -511,11 +499,15 @@ def run_job(doc: dict) -> None:
     except Exception as err:
         attempts = doc.get("attempts", 0) + 1
         if attempts > MAX_RETRIES:
-            log.exception(f"job {doc['_id']} failed permanently after {attempts} attempts")
-            DB.jobs.update_one(
-                {"_id": doc["_id"]},
-                {"$set": {"status": STATUS_FAILED, "attempts": attempts, "error": repr(err)}},
-            )
+            if REMOVE_FAILED_JOBS:
+                log.exception(f"job {doc['_id']} failed permanently after {attempts} attempts, removing job")
+                DB.jobs.delete_one({"_id": doc["_id"]})
+            else:
+                log.exception(f"job {doc['_id']} failed permanently after {attempts} attempts")
+                DB.jobs.update_one(
+                    {"_id": doc["_id"]},
+                    {"$set": {"status": STATUS_FAILED, "attempts": attempts, "error": repr(err)}},
+                )
         else:
             next_run = datetime.now(UTC) + timedelta(seconds=retry_delay(attempts))
             DB.jobs.update_one(
