@@ -28,6 +28,13 @@
   margin-top: 0;
 }
 
+/* Remote custom emojis (Mastodon-style :shortcodes:) in display names. */
+img.custom-emoji {
+  height: 1.25em;
+  width: auto;
+  vertical-align: -0.25em;
+}
+
 html, body {
   height: 100%;
 }

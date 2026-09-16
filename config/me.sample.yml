@@ -2,6 +2,8 @@ username: 'username'
 name: 'You Name'
 icon_url: 'https://you-avatar-url'
 domain: 'your-domain.tld'
+# :alias: shortcodes in name/summary (e.g. :snake:) are converted to real
+# Unicode emoji for the federated actor profile and the web UI alike.
 summary: 'your summary'
 https: true
 image_max_size:

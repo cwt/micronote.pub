@@ -9,7 +9,7 @@
 		{% endif %}
 		</span>
 		<div class="actor-inline">
-			<div style="font-weight: bold">{{ follower.name or follower.preferredUsername }}</div>
+			<div style="font-weight: bold">{{ follower | display_name }}</div>
 			<small class="lcolor">@{{ follower.preferredUsername }}@{{ follower | url_or_id | get_url | domain }}</small>
 		</div>
 	</a>
@@ -30,7 +30,7 @@
 		<div class="note-wrapper">
 			<div style="clear: both; height: 40px;">
 				<a href="{{ actor | url_or_id | get_url }}" style="margin: 0; text-decoration: none; text-decoration: none; display: block; width: 80%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; float: left;" class="no-hover">
-					<strong>{{ actor.name or actor.preferredUsername }}</strong><br />
+					<strong>{{ actor | display_name }}</strong><br />
 					<span class="l">@{% if not no_color and obj.id | is_from_outbox %}<span class="pcolor">{{ actor.preferredUsername }}</span>{% else %}{{ actor.preferredUsername }}{% endif %}@{% if not no_color and obj.id | is_from_outbox %}<span class="pcolor">{{ actor | url_or_id | get_url | domain }}</span>{% else %}{{ actor | url_or_id | get_url | domain }}{% endif %}</span>
 				</a>
 			{% if not perma %}

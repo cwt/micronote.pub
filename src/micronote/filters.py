@@ -14,8 +14,8 @@ from dateutil import parser
 from flask import current_app
 from html2text import html2text
 
-from micronote.config import CDN_URL, ID, MEDIA_CACHE, TIMEZONE
-from micronote.utils.emoji import flexmoji
+from micronote.config import CDN_URL, DB, ID, MEDIA_CACHE, TIMEZONE
+from micronote.utils.emoji import extract_custom_emojis, flexmoji, render_custom_emojis
 from micronote.utils.highlight import highlight_code_blocks
 from micronote.utils.media import Kind
 
@@ -152,6 +152,35 @@ def clean(html):
 @blueprint.app_template_filter()
 def emojize(html):
     return flexmoji(html)
+
+
+def _cached_actor_emojis(actor_id) -> dict[str, str]:
+    """Custom emojis for an actor from the local actor cache (no network)."""
+    if not actor_id or not isinstance(actor_id, str):
+        return {}
+    try:
+        doc = DB.actors.find_one({"remote_id": actor_id})
+    except Exception:
+        return {}
+    if not doc:
+        return {}
+    return extract_custom_emojis((doc.get("data") or {}).get("tag"))
+
+
+@blueprint.app_template_filter()
+def display_name(actor):
+    """Renders an actor's display name, with custom emojis as images.
+
+    Emoji data comes from the stored actor (or its full fetched form);
+    older stored actors fall back to the local actor cache. Unknown
+    shortcodes are left as-is, so output is always safe to render.
+    """
+    if not isinstance(actor, dict):
+        return ""
+    emojis = actor.get("emojis") or extract_custom_emojis(actor.get("tag"))
+    if not emojis:
+        emojis = _cached_actor_emojis(actor.get("id"))
+    return render_custom_emojis(actor.get("name") or actor.get("preferredUsername") or "", emojis)
 
 
 @blueprint.app_template_filter()

@@ -23,6 +23,7 @@ from html2text import html2text
 from neosqlite.objectid import ObjectId
 
 from micronote.config import BASE_URL, DB, DB_NAME, EXTRA_INBOXES, ID, ME, USER_AGENT, USERNAME, create_db_client
+from micronote.utils.emoji import extract_custom_emojis
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,9 @@ def _actor_to_meta(actor: ap.BaseActivity, with_inbox: bool = False) -> dict[str
         "icon": actor.icon,
         "name": actor.name,
         "preferredUsername": actor.preferredUsername,
+        # Custom emojis (Mastodon-style Emoji tags) for rendering the
+        # display name; stored at ingest so pages need no extra lookups.
+        "emojis": extract_custom_emojis((actor._data or {}).get("tag", [])),
     }
     if with_inbox:
         meta |= {

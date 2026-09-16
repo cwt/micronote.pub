@@ -14,6 +14,7 @@ from active_boxes.activitypub import DEFAULT_CTX
 from itsdangerous import URLSafeTimedSerializer
 from neosqlite import ASCENDING, Connection
 
+from micronote.utils.emoji import unicode_emojize
 from micronote.utils.key import KEY_DIR, get_key, get_secret_key
 from micronote.utils.media import MediaCache
 
@@ -73,12 +74,15 @@ with (KEY_DIR / "me.yml").open() as f:
     conf = yaml.safe_load(f)
 
 USERNAME = conf["username"]
-NAME = conf["name"]
+# :alias: shortcodes are converted to Unicode once here, so the served
+# actor JSON, the manifest and the page titles all carry real characters
+# (remote nodes cannot resolve our shortcodes).
+NAME = unicode_emojize(conf["name"])
 DOMAIN = conf["domain"]
 SCHEME = "https" if conf.get("https", True) else "http"
 BASE_URL = f"{SCHEME}://{DOMAIN}"
 ID = BASE_URL
-SUMMARY = conf["summary"]
+SUMMARY = unicode_emojize(conf["summary"])
 ICON_URL = conf["icon_url"]
 PASS = conf["pass"]
 EXTRA_INBOXES = conf.get("extra_inboxes", [])

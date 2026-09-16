@@ -15,7 +15,7 @@
 						{% set boost_actor = item.meta.actor %}
 						{% if boost_actor %}
 							<p style="margin-bottom:0px;">
-								<span class="bar-item-no-hover"><a style="color:#808080;" href="{{ boost_actor.url | get_url }}">{{ boost_actor.name or boost_actor.preferredUsername }}</a> boosted</span>
+								<span class="bar-item-no-hover"><a style="color:#808080;" href="{{ boost_actor.url | get_url }}">{{ boost_actor | display_name }}</a> boosted</span>
 							</p>
 						{% endif %}
 						{% if item.meta.object %}
@@ -25,7 +25,7 @@
 					{% if item | has_type('Like') %}
 						{% set boost_actor = item.meta.actor %}
 						<p style="margin-bottom:0px;">
-							<span class="bar-item-no-hover"><a style="color:#808080;" href="{{ boost_actor.url | get_url }}"> {{ boost_actor.name or boost_actor.preferredUsername }}</a> liked</span>
+							<span class="bar-item-no-hover"><a style="color:#808080;" href="{{ boost_actor.url | get_url }}"> {{ boost_actor | display_name }}</a> liked</span>
 						</p>
 						{% if item.meta.object %}
 							{{ utils.display_note(item.meta.object, ui=False, meta={'actor': item.meta.object_actor}) }}
