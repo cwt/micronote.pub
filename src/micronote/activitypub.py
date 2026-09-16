@@ -626,19 +626,41 @@ def build_inbox_json_feed(path: str, request_cursor: str | None = None) -> dict[
             abort(400)
 
     items = list(DB.activities.find(q, limit=50).sort("_id", -1))
+
+    missing_iris = {
+        item.get("activity", {}).get("actor")
+        for item in items
+        if not item.get("meta", {}).get("actor") and item.get("activity", {}).get("actor")
+    }
+    cached_actors: dict[str, dict[str, Any]] = {}
+    if missing_iris:
+        for actor_doc in DB.actors.find({"remote_id": {"$in": list(missing_iris)}}):
+            remote_id = actor_doc.get("remote_id")
+            if remote_id and actor_doc.get("data"):
+                cached_actors[remote_id] = actor_doc["data"]
+
     data = []
     for item in items:
-        actor = ap.get_backend().fetch_iri_sync(item["activity"]["actor"])
-        data.append(
-            _feed_item(
-                item,
-                author={
-                    "name": actor.get("name", actor.get("preferredUsername")),
-                    "url": actor.get("url"),
-                    "avatar": actor.get("icon", {}).get("url"),
-                },
-            )
-        )
+        activity = item.get("activity", {})
+        actor_iri = activity.get("actor")
+        meta_actor = item.get("meta", {}).get("actor")
+        if not meta_actor and actor_iri:
+            meta_actor = cached_actors.get(actor_iri, {})
+
+        if not isinstance(meta_actor, dict):
+            meta_actor = {}
+
+        name = meta_actor.get("name") or meta_actor.get("preferredUsername") or actor_iri or ""
+        url = meta_actor.get("url") or actor_iri or ""
+        icon = meta_actor.get("icon")
+        avatar = icon.get("url") if isinstance(icon, dict) else None
+
+        author_info = {
+            "name": name,
+            "url": url,
+            "avatar": avatar,
+        }
+        data.append(_feed_item(item, author=author_info))
     cursor = str(items[-1]["_id"]) if items else None
     resp = {
         "version": "https://jsonfeed.org/version/1",
