@@ -41,6 +41,14 @@ def _get_prop(props, name, default=None):
     return default
 
 
+def _normalize_scope(raw_scope) -> str:
+    if isinstance(raw_scope, str):
+        return raw_scope
+    if isinstance(raw_scope, (list, tuple, set)):
+        return " ".join(raw_scope)
+    return ""
+
+
 def get_client_id_data(url):
     fallback = {"logo": None, "name": url, "url": url}
     if not url or not url.startswith(("http://", "https://")):
@@ -153,7 +161,7 @@ def indieauth_endpoint():
 
     me = auth["me"]
     state = auth["state"]
-    scope = " ".join(auth["scope"])
+    scope = _normalize_scope(auth.get("scope"))
     current_app.logger.debug(f"STATE {state}")
     return build_auth_resp({"me": me, "state": state, "scope": scope})
 
@@ -176,7 +184,7 @@ def token_endpoint():
         )
         if not auth:
             abort(403)
-        scope = " ".join(auth["scope"])
+        scope = _normalize_scope(auth.get("scope"))
         payload = {
             "me": me,
             "client_id": client_id,
