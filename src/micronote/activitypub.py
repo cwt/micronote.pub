@@ -12,7 +12,6 @@ from active_boxes.activitypub import _to_list
 from active_boxes.backend import Backend
 from active_boxes.errors import (
     ActivityGoneError,
-    ActivityNotFoundError,
     Error,
     NotAnActivityError,
 )
@@ -496,32 +495,32 @@ class MicroblogPubBackend(Backend):
 
         new_threads = []
         root_reply = in_reply_to
+        reply = None
         try:
             reply = ap.fetch_remote_activity_sync(root_reply)
-        except (ActivityGoneError, ActivityNotFoundError, NotAnActivityError):
-            logger.info(f"reply target {root_reply} not fetchable, skipping thread walk")
-            return
+        except (Error, Exception) as err:
+            logger.info(f"reply target {root_reply} not fetchable ({err}), skipping thread walk")
 
         creply = self.DB.activities.find_one_and_update(
             {"activity.object.id": in_reply_to},
             {"$inc": {"meta.count_reply": 1, "meta.count_direct_reply": 1}},
         )
-        if not creply:
+        if not creply and reply is not None:
             # It means the activity is not in the inbox, and not in the outbox, we want to save it
             self.save(Box.REPLIES, reply)
             new_threads.append(reply.id)
 
         seen = {root_reply}
         while reply is not None:
-            in_reply_to = reply.inReplyTo
+            in_reply_to = getattr(reply, "inReplyTo", None)
             if not in_reply_to or in_reply_to in seen:
                 break
             seen.add(in_reply_to)
             root_reply = in_reply_to
             try:
                 reply = ap.fetch_remote_activity_sync(root_reply)
-            except (ActivityGoneError, ActivityNotFoundError, NotAnActivityError):
-                logger.info(f"reply target {root_reply} not fetchable, stopping thread walk")
+            except (Error, Exception) as err:
+                logger.info(f"reply target {root_reply} not fetchable ({err}), stopping thread walk")
                 break
             q = {"activity.object.id": root_reply}
             if not self.DB.activities.count_documents(q):
@@ -529,10 +528,11 @@ class MicroblogPubBackend(Backend):
                 new_threads.append(reply.id)
 
         self.DB.activities.update_one({"remote_id": create.id}, {"$set": {"meta.thread_root_parent": root_reply}})
-        self.DB.activities.update_many(
-            {"box": Box.REPLIES.value, "remote_id": {"$in": new_threads}},
-            {"$set": {"meta.thread_root_parent": root_reply}},
-        )
+        if new_threads:
+            self.DB.activities.update_many(
+                {"box": Box.REPLIES.value, "remote_id": {"$in": new_threads}},
+                {"$set": {"meta.thread_root_parent": root_reply}},
+            )
 
     def post_to_outbox(self, activity: ap.BaseActivity) -> None:
         if activity.has_type(ap.CREATE_TYPES):
