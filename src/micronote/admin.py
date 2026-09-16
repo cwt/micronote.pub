@@ -5,7 +5,13 @@ import bcrypt
 import flask
 from active_boxes import activitypub as ap
 from active_boxes.activitypub import ActivityType, get_backend
-from active_boxes.errors import ActivityGoneError, ActivityNotFoundError, BadActivityError, UnexpectedActivityTypeError
+from active_boxes.errors import (
+    ActivityGoneError,
+    ActivityNotFoundError,
+    ActivityUnavailableError,
+    BadActivityError,
+    UnexpectedActivityTypeError,
+)
 from flask import abort, current_app, redirect, render_template, request, session, url_for
 from flask_wtf.csrf import CSRFProtect
 
@@ -98,19 +104,49 @@ def admin_lookup():
     return render_template("lookup.html", data=data, meta=meta, url=submitted, error=error)
 
 
+def _fetch_remote_data(oid: str):
+    """Fetches a remote object and wraps it as ad-hoc thread data.
+
+    Used when the object is not stored locally (yet): the worker saves
+    unknown reply targets asynchronously, and /admin/new can display
+    notes that were only fetched on the fly.
+    """
+    try:
+        remote_object = get_backend().fetch_iri_sync(oid)
+    except (ActivityGoneError, ActivityNotFoundError, ActivityUnavailableError):
+        abort(404)
+    data = {"meta": {}, "activity": {"object": remote_object}}
+    try:
+        parsed = ap.parse_activity(data["activity"]["object"])
+    except (BadActivityError, UnexpectedActivityTypeError):
+        abort(404)
+    return data, parsed
+
+
 @blueprint.route("/admin/thread")
 @login_required
 def admin_thread():
-    data = DB.activities.find_one(
-        {
-            "$or": [
-                {"remote_id": request.args.get("oid")},
-                {"activity.object.id": request.args.get("oid")},
-            ]
-        }
+    oid = request.args.get("oid")
+    data = (
+        DB.activities.find_one(
+            {
+                "$or": [
+                    {"remote_id": oid},
+                    {"activity.object.id": oid},
+                ]
+            }
+        )
+        if oid
+        else None
     )
     if not data:
-        abort(404)
+        if not oid:
+            abort(404)
+        # Not stored locally (yet): the worker saves unknown reply targets
+        # asynchronously, and /admin/new can display notes that were only
+        # fetched on the fly. Fetch the object so the thread still renders
+        # instead of 404ing straight after posting a reply.
+        data, _ = _fetch_remote_data(oid)
     if data["meta"].get("deleted", False):
         abort(410)
     thread = _build_thread(data)
@@ -133,18 +169,7 @@ def admin_new():
         if data:
             reply = ap.parse_activity(data["activity"])
         else:
-            try:
-                remote_object = get_backend().fetch_iri_sync(request.args.get("reply"))
-            except (ActivityGoneError, ActivityNotFoundError):
-                abort(404)
-            data = {
-                "meta": {},
-                "activity": {"object": remote_object},
-            }
-            try:
-                reply = ap.parse_activity(data["activity"]["object"])
-            except (BadActivityError, UnexpectedActivityTypeError):
-                abort(404)
+            data, reply = _fetch_remote_data(request.args.get("reply"))
 
         reply_id = reply.id
         if reply.ACTIVITY_TYPE == ActivityType.CREATE:

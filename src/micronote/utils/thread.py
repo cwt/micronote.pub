@@ -19,6 +19,9 @@ def _build_thread(data: dict, include_children: bool = True) -> list[dict]:
         "$or": [
             {"meta.thread_root_parent": root_id, "type": "Create"},
             {"activity.object.id": root_id},
+            # Direct replies, visible even before the worker links the
+            # thread via meta.thread_root_parent (e.g. right after posting).
+            {"activity.object.inReplyTo": root_id},
         ]
     }
     if data["activity"]["object"].get("inReplyTo"):
