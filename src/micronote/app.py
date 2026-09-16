@@ -3,7 +3,7 @@ import logging
 import mimetypes
 import os
 import traceback
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from active_boxes import activitypub as ap
@@ -59,6 +59,7 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=SCHEME == "https",
+    PERMANENT_SESSION_LIFETIME=timedelta(days=365),
     MAX_CONTENT_LENGTH=10 * 1024 * 1024,
 )
 app.jinja_env.trim_blocks = True
@@ -133,6 +134,14 @@ def inject_config():
 @app.after_request
 def set_x_powered_by(response):
     response.headers["X-Powered-By"] = "micronote.pub"
+    if (
+        request.path == "/login"
+        or request.path.startswith(("/admin", "/indieauth", "/token"))
+        or (request.path.startswith("/api/") and session.get("logged_in"))
+    ):
+        # Private, account-specific responses must never sit in a browser
+        # or shared (proxy/CDN) cache.
+        response.headers["Cache-Control"] = "no-store, max-age=0"
     return response
 
 
@@ -172,11 +181,14 @@ def handle_value_error(error):
 @app.errorhandler(Error)
 def handle_activitypub_error(error):
     logger.error(f"caught activitypub error {error!r}, {traceback.format_tb(error.__traceback__)}")
+    status_code = getattr(error, "status_code", 400)
     if wants_html():
         message = getattr(error, "message", "") or str(error) or error.__class__.__name__
-        return render_template("error.html", message=message), getattr(error, "status_code", 400)
-    response = flask_jsonify(error.to_dict())
-    response.status_code = error.status_code
+        return render_template("error.html", message=message), status_code
+    to_dict = getattr(error, "to_dict", None)
+    payload = to_dict() if callable(to_dict) else {"error": str(error) or error.__class__.__name__}
+    response = flask_jsonify(payload)
+    response.status_code = status_code
     return response
 
 
@@ -273,6 +285,7 @@ def authorize_follow():
     if request.method == "GET":
         return render_template("authorize_remote_follow.html", profile=request.args.get("profile"))
 
+    csrf.protect()
     profile = request.form.get("profile")
     actor = get_actor_url_sync(profile) if profile else None
     if not actor:
@@ -329,6 +342,7 @@ def webauthn_register():
 @login_required
 def drop_cache():
     DB.actors.drop()
+    DB.cache2.delete_many({})
     return "Done"
 
 

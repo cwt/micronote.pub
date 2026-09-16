@@ -227,7 +227,7 @@ def admin_stream():
 @blueprint.route("/admin/logout")
 @login_required
 def admin_logout():
-    session["logged_in"] = False
+    session.clear()
     return redirect("/")
 
 
@@ -272,6 +272,7 @@ def admin_login():
         if not login_error:
             session.clear()
             session["logged_in"] = True
+            session.permanent = True
             return redirect(safe_next_url(request.args.get("redirect"), url_for(".admin_notifications")))
 
     options = None

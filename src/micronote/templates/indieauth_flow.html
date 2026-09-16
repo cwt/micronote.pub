@@ -18,6 +18,7 @@
 		</div>
 	</div>
 	<form method="POST" action="{{ url_for('indieauth.indieauth_flow') }}">
+		<input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
 	{% if scopes %}
 		<h3>Scopes</h3>
 		<ul>

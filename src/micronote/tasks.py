@@ -76,6 +76,11 @@ def post_to_inbox(activity: ap.BaseActivity) -> None:
 def invalidate_cache(activity) -> None:
     if activity.has_type([ap.ActivityType.UNDO, ap.ActivityType.DELETE, ap.ActivityType.UPDATE]):
         DB.cache2.delete_many({})
+    elif activity.has_type(ap.ActivityType.FOLLOW):
+        # A new follower changes the followers badge rendered into the
+        # cached homepage (header.html), so the page cache must go.
+        # (Duplicates never reach here: post_to_inbox drops them.)
+        DB.cache2.delete_many({})
     elif activity.has_type([ap.ActivityType.LIKE, ap.ActivityType.ANNOUNCE]):
         if activity.get_object_sync().id.startswith(BASE_URL):
             DB.cache2.delete_many({})

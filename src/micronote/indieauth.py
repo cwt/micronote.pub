@@ -7,6 +7,7 @@ from urllib.parse import urlencode, urlparse
 import flask
 import mf2py
 from flask import Response, abort, current_app, redirect, render_template, request, session, url_for
+from flask_wtf.csrf import CSRFProtect
 from itsdangerous import BadSignature
 from neosqlite import DESCENDING
 
@@ -14,6 +15,7 @@ from micronote.config import DB, ID, JWT
 from micronote.utils.login import login_required
 
 blueprint = flask.Blueprint("indieauth", __name__, template_folder="templates")
+csrf = CSRFProtect(flask.current_app)
 
 
 def build_auth_resp(payload):
@@ -72,6 +74,7 @@ def _same_origin(url_a, url_b) -> bool:
 @blueprint.route("/indieauth/flow", methods=["POST"])
 @login_required
 def indieauth_flow():
+    csrf.protect()
     auth = {
         "scope": " ".join(request.form.getlist("scopes")),
         "me": request.form.get("me"),
@@ -105,7 +108,7 @@ def indieauth_flow():
 def indieauth_endpoint():
     if request.method == "GET":
         if not session.get("logged_in"):
-            return redirect(url_for("admin.admin_login", next=request.url))
+            return redirect(url_for("admin.admin_login", redirect=request.full_path))
 
         me = request.args.get("me")
         # me == ID is enforced in indieauth_flow before any code is issued.
@@ -148,7 +151,6 @@ def indieauth_endpoint():
         abort(403)
         return
 
-    session["logged_in"] = True
     me = auth["me"]
     state = auth["state"]
     scope = " ".join(auth["scope"])
