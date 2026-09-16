@@ -1,3 +1,4 @@
+import hashlib
 import re
 import urllib
 from datetime import UTC, datetime, timedelta
@@ -132,7 +133,9 @@ def get_og_image_url(url, size=100):
 
 @blueprint.app_template_filter()
 def permalink_id(val):
-    return str(hash(val))
+    if not val:
+        return ""
+    return hashlib.sha256(str(val).encode("utf-8")).hexdigest()[:12]
 
 
 @blueprint.app_template_filter()
