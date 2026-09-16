@@ -25,7 +25,7 @@ This index catalogs verified software defects, security vulnerabilities, and alg
 | [BUG-004](./004.md) | Open Redirect Vulnerability via Protocol-Relative URL Bypass in safe_next_url | High | Session / Security | Resolved |
 | [BUG-005](./005.md) | Non-Deterministic DOM Element IDs and In-Page Anchors via Python hash() | Medium | Template Filters | Resolved |
 | [BUG-006](./006.md) | Follower Deduplication Script Crashes on Embedded ActivityPub Dict Objects | Low | CLI Maintenance | Resolved |
-| [BUG-007](./007.md) | In-Place Query Mutation and Corrupted totalItems Count in build_ordered_collection | Medium | ActivityPub Pagination | Open |
+| [BUG-007](./007.md) | In-Place Query Mutation and Corrupted totalItems Count in build_ordered_collection | Medium | ActivityPub Pagination | Resolved |
 | [BUG-008](./008.md) | Background Worker Fails Permanently on Invalid Remote Actor Icons | High | Background Worker | Open |
 | [BUG-009](./009.md) | Unescaped Base URL in Notification Database Regular Expressions | Low | Admin Notifications | Open |
 | [BUG-010](./010.md) | Severe Blocking N+1 Remote HTTP Calls in Inbox Stream Feed Endpoint | Critical | Stream API / Network | Open |

@@ -677,15 +677,16 @@ def build_ordered_collection(col, q=None, cursor=None, map_func=None, limit=50, 
     """Helper for building an OrderedCollection from a MongoDB query (with pagination support)."""
     col_name = col_name or col.name
     collection_id = f"{BASE_URL}/{col_name}"
-    if q is None:
-        q = {}
+    base_q = q.copy() if q is not None else {}
+    total_items = col.count_documents(base_q)
 
+    query_with_cursor = base_q.copy()
     if cursor:
         try:
-            q["_id"] = {"$lt": ObjectId(cursor)}
+            query_with_cursor["_id"] = {"$lt": ObjectId(cursor)}
         except Exception:
             abort(400)
-    data = list(col.find(q, limit=limit).sort("_id", -1))
+    data = list(col.find(query_with_cursor, limit=limit).sort("_id", -1))
 
     if not data:
         # Returns an empty page if there's a cursor
@@ -695,20 +696,19 @@ def build_ordered_collection(col, q=None, cursor=None, map_func=None, limit=50, 
                 "type": ap.ActivityType.ORDERED_COLLECTION_PAGE.value,
                 "id": f"{collection_id}?cursor={cursor}",
                 "partOf": collection_id,
-                "totalItems": 0,
+                "totalItems": total_items,
                 "orderedItems": [],
             }
         return {
             "@context": ap.COLLECTION_CTX,
             "id": collection_id,
-            "totalItems": 0,
+            "totalItems": total_items,
             "type": ap.ActivityType.ORDERED_COLLECTION.value,
             "orderedItems": [],
         }
 
     start_cursor = str(data[0]["_id"])
     next_page_cursor = str(data[-1]["_id"])
-    total_items = col.count_documents(q)
 
     data = [_remove_id(doc) for doc in data]
     if map_func:
