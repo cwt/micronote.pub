@@ -2,8 +2,8 @@
   font-family: 'BlobMoji';
   font-display: swap;
   src: local("Blobmoji"),
-       url('/static/fonts/BlobMoji/BlobMoji-0000-329f.woff') format('woff');
-       unicode-range: U+0000-329f;
+       url('/static/fonts/BlobMoji/BlobMoji-0000-329f.woff2') format('woff2');
+  unicode-range: U+0000-329f;
   font-weight: normal;
   font-style: normal;
 }
@@ -11,8 +11,8 @@
   font-family: 'BlobMoji';
   font-display: swap;
   src: local("Blobmoji"),
-       url('/static/fonts/BlobMoji/BlobMoji-1f000-1f0ff.woff') format('woff');
-       unicode-range: U+1f000-1f0ff;
+       url('/static/fonts/BlobMoji/BlobMoji-1f000-1f0ff.woff2') format('woff2');
+  unicode-range: U+1f000-1f0ff;
   font-weight: normal;
   font-style: normal;
 }
@@ -20,8 +20,8 @@
   font-family: 'BlobMoji';
   font-display: swap;
   src: local("Blobmoji"),
-       url('/static/fonts/BlobMoji/BlobMoji-1f100-1f1ff.woff') format('woff');
-       unicode-range: U+1f100-1f1ff;
+       url('/static/fonts/BlobMoji/BlobMoji-1f100-1f1ff.woff2') format('woff2');
+  unicode-range: U+1f100-1f1ff;
   font-weight: normal;
   font-style: normal;
 }
@@ -29,8 +29,8 @@
   font-family: 'BlobMoji';
   font-display: swap;
   src: local("Blobmoji"),
-       url('/static/fonts/BlobMoji/BlobMoji-1f200-1f2ff.woff') format('woff');
-       unicode-range: U+1f200-1f2ff;
+       url('/static/fonts/BlobMoji/BlobMoji-1f200-1f2ff.woff2') format('woff2');
+  unicode-range: U+1f200-1f2ff;
   font-weight: normal;
   font-style: normal;
 }
@@ -38,8 +38,8 @@
   font-family: 'BlobMoji';
   font-display: swap;
   src: local("Blobmoji"),
-       url('/static/fonts/BlobMoji/BlobMoji-1f300-1f3ff.woff') format('woff');
-       unicode-range: U+1f300-1f3ff;
+       url('/static/fonts/BlobMoji/BlobMoji-1f300-1f3ff.woff2') format('woff2');
+  unicode-range: U+1f300-1f3ff;
   font-weight: normal;
   font-style: normal;
 }
@@ -47,8 +47,8 @@
   font-family: 'BlobMoji';
   font-display: swap;
   src: local("Blobmoji"),
-       url('/static/fonts/BlobMoji/BlobMoji-1f400-1f4ff.woff') format('woff');
-       unicode-range: U+1f400-1f4ff;
+       url('/static/fonts/BlobMoji/BlobMoji-1f400-1f4ff.woff2') format('woff2');
+  unicode-range: U+1f400-1f4ff;
   font-weight: normal;
   font-style: normal;
 }
@@ -56,8 +56,8 @@
   font-family: 'BlobMoji';
   font-display: swap;
   src: local("Blobmoji"),
-       url('/static/fonts/BlobMoji/BlobMoji-1f500-1f5ff.woff') format('woff');
-       unicode-range: U+1f500-1f5ff;
+       url('/static/fonts/BlobMoji/BlobMoji-1f500-1f5ff.woff2') format('woff2');
+  unicode-range: U+1f500-1f5ff;
   font-weight: normal;
   font-style: normal;
 }
@@ -65,8 +65,8 @@
   font-family: 'BlobMoji';
   font-display: swap;
   src: local("Blobmoji"),
-       url('/static/fonts/BlobMoji/BlobMoji-1f600-1f6ff.woff') format('woff');
-       unicode-range: U+1f600-1f6ff;
+       url('/static/fonts/BlobMoji/BlobMoji-1f600-1f6ff.woff2') format('woff2');
+  unicode-range: U+1f600-1f6ff;
   font-weight: normal;
   font-style: normal;
 }
@@ -74,8 +74,8 @@
   font-family: 'BlobMoji';
   font-display: swap;
   src: local("Blobmoji"),
-       url('/static/fonts/BlobMoji/BlobMoji-1f900-1f9ff.woff') format('woff');
-       unicode-range: U+1f900-1f9ff;
+       url('/static/fonts/BlobMoji/BlobMoji-1f700-1f7ff.woff2') format('woff2');
+  unicode-range: U+1f700-1f7ff;
   font-weight: normal;
   font-style: normal;
 }
@@ -83,8 +83,26 @@
   font-family: 'BlobMoji';
   font-display: swap;
   src: local("Blobmoji"),
-       url('/static/fonts/BlobMoji/BlobMoji-e0000-fffff.woff') format('woff');
-       unicode-range: U+e0000-fffff;
+       url('/static/fonts/BlobMoji/BlobMoji-1f900-1f9ff.woff2') format('woff2');
+  unicode-range: U+1f900-1f9ff;
+  font-weight: normal;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'BlobMoji';
+  font-display: swap;
+  src: local("Blobmoji"),
+       url('/static/fonts/BlobMoji/BlobMoji-1fa00-1faff.woff2') format('woff2');
+  unicode-range: U+1fa00-1faff;
+  font-weight: normal;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'BlobMoji';
+  font-display: swap;
+  src: local("Blobmoji"),
+       url('/static/fonts/BlobMoji/BlobMoji-e0000-fffff.woff2') format('woff2');
+  unicode-range: U+e0000-fffff;
   font-weight: normal;
   font-style: normal;
 }
