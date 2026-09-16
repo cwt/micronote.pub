@@ -17,18 +17,33 @@ from active_boxes.errors import (
     Error,
     NotAnActivityError,
 )
+from active_boxes.http_client import get_http_client
+from active_boxes.urlutils import URLLookupFailedError
 from cachetools import LRUCache
 from feedgen.feed import FeedGenerator
 from flask import abort
 from html2text import html2text
 from neosqlite.objectid import ObjectId
 
-from micronote.config import BASE_URL, DB, DB_NAME, EXTRA_INBOXES, ID, ME, USER_AGENT, USERNAME, create_db_client
+from micronote.config import (
+    BASE_URL,
+    DB,
+    DB_NAME,
+    EXTRA_INBOXES,
+    ID,
+    KEY,
+    ME,
+    USER_AGENT,
+    USERNAME,
+    create_db_client,
+)
+from micronote.utils.delivery import sign_fetch_request
 from micronote.utils.emoji import extract_custom_emojis
 
 logger = logging.getLogger(__name__)
 
 ACTORS_CACHE: LRUCache[str, Any] = LRUCache(maxsize=256)
+AUTHORIZED_FETCH = strtobool(os.getenv("MICRONOTE_AUTHORIZED_FETCH", "true"))
 
 
 def _json_default(value):
@@ -261,7 +276,31 @@ class MicroblogPubBackend(Backend):
 
         return None
 
+    async def _fetch_remote_iri(self, iri: str, **kwargs) -> ap.ObjectType:
+        """Fetch remote IRI, signing request with HTTP Signatures for Authorized Fetch."""
+        if AUTHORIZED_FETCH and KEY and getattr(KEY, "privkey", None):
+            try:
+                headers = sign_fetch_request(iri, KEY, self.user_agent())
+                try:
+                    await self.check_url(iri)
+                except URLLookupFailedError as url_err:
+                    raise ActivityUnavailableError(f"unable to fetch {iri}, url lookup failed") from url_err
+
+                client = await get_http_client()
+                kwargs_copy = dict(kwargs)
+                kwargs_copy.setdefault("debug", self.debug_mode())
+                return await client.get_json(iri, headers=headers, **kwargs_copy)
+            except (ActivityNotFoundError, ActivityGoneError):
+                raise
+            except ActivityUnavailableError as err:
+                logger.debug(f"signed fetch failed for {iri}: {err}, trying unsigned fallback")
+            except Exception as err:
+                logger.debug(f"signed fetch exception for {iri}: {err}, trying unsigned fallback")
+
+        return await super().fetch_iri(iri, **kwargs)
+
     async def fetch_iri(self, iri: str, **kwargs) -> ap.ObjectType:
+        logger.info(f"fetch_iri {iri!r}")
         if iri == ME["id"]:
             return ME
 
@@ -280,7 +319,7 @@ class MicroblogPubBackend(Backend):
         if data is None:
             # Fetch the URL via HTTP
             logger.info(f"dereference {iri} via HTTP")
-            return await super().fetch_iri(iri, **kwargs)
+            return await self._fetch_remote_iri(iri, **kwargs)
 
         logger.debug(f"_fetch_iri({iri!r}) == {data!r}")
         if ap._has_type(data["type"], ap.ACTOR_TYPES):

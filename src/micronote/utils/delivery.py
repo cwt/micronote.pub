@@ -47,3 +47,40 @@ def sign_delivery_request(url: str, body: str | bytes, key, user_agent: str) -> 
     # otherwise derive a port-less Host and overwrite the correct one.
     signed = sign_request_sync("POST", delivery_target(url), prepared.headers, key, body, host=netloc)
     return dict(signed)
+
+
+def sign_fetch_request(url: str, key, user_agent: str) -> dict[str, str]:
+    """Returns header dict with a valid draft-cavage signature for GETting url (Authorized Fetch)."""
+    import base64
+    from datetime import UTC, datetime
+
+    from active_boxes.httpsig import _sign_bytes_rsa
+    from active_boxes.key import Ed25519Key
+
+    netloc = urlparse(url).netloc
+    target = delivery_target(url)
+    date = datetime.now(UTC).strftime("%a, %d %b %Y %H:%M:%S GMT")
+    accept = "application/activity+json, application/json"
+
+    headers = {
+        "Host": netloc,
+        "Date": date,
+        "Accept": accept,
+        "User-Agent": user_agent,
+    }
+
+    sigheaders = "(request-target) host date accept"
+    signed_string = f"(request-target): get {target}\nhost: {netloc}\ndate: {date}\naccept: {accept}"
+
+    if isinstance(key, Ed25519Key):
+        from active_boxes.httpsig import _sign_bytes_ed25519
+
+        sig_bytes = _sign_bytes_ed25519(key.privkey, signed_string.encode("utf-8"))
+        algorithm = "ed25519"
+    else:
+        sig_bytes = _sign_bytes_rsa(key.privkey, signed_string.encode("utf-8"))
+        algorithm = "rsa-sha256"
+
+    sig = base64.b64encode(sig_bytes).decode("utf-8")
+    headers["Signature"] = f'keyId="{key.key_id()}",algorithm="{algorithm}",headers="{sigheaders}",signature="{sig}"'
+    return headers
