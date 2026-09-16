@@ -5,11 +5,13 @@ from flask import redirect, request, session, url_for
 
 
 def safe_next_url(value: str | None, fallback: str) -> str:
-    """Returns value only when it is a relative path on this host."""
-    if not value:
+    """Returns value only when it is a strictly relative path on this host."""
+    if not value or "\\" in value:
+        return fallback
+    if not value.startswith("/") or value.startswith("//"):
         return fallback
     parsed = urlparse(value)
-    if parsed.scheme or parsed.netloc or not parsed.path.startswith("/"):
+    if parsed.scheme or parsed.netloc:
         return fallback
     return value
 
