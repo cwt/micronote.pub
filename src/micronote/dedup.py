@@ -10,7 +10,12 @@ def remove_duplicate_follows(box: str, field: str, label: str) -> None:
     seen: set[str] = set()
     query = {"box": box, "type": ActivityType.FOLLOW.value, "meta.undo": False}
     for doc in DB.activities.find(query):
-        target = doc["activity"][field]
+        activity = doc.get("activity", {})
+        target = activity.get(field)
+        if isinstance(target, dict):
+            target = target.get("id")
+        if not isinstance(target, str) or not target:
+            continue
         if target not in seen:
             seen.add(target)
             print(f"{label}: {target}")
