@@ -1,4 +1,5 @@
 import json
+import re
 from urllib.parse import urlparse
 
 import bcrypt
@@ -214,13 +215,14 @@ def admin_notifications():
         "activity.object.tag.name": f"@{USERNAME}@{DOMAIN}",
         "meta.deleted": False,
     }
+    escaped_base = re.escape(BASE_URL)
     replies_query = {
         "type": ActivityType.CREATE.value,
-        "activity.object.inReplyTo": {"$regex": f"^{BASE_URL}"},
+        "activity.object.inReplyTo": {"$regex": f"^{escaped_base}"},
     }
     announced_query = {
         "type": ActivityType.ANNOUNCE.value,
-        "activity.object": {"$regex": f"^{BASE_URL}"},
+        "activity.object": {"$regex": f"^{escaped_base}"},
     }
     new_followers_query = {"type": ActivityType.FOLLOW.value}
     unfollow_query = {
@@ -229,7 +231,7 @@ def admin_notifications():
     }
     likes_query = {
         "type": ActivityType.LIKE.value,
-        "activity.object": {"$regex": f"^{BASE_URL}"},
+        "activity.object": {"$regex": f"^{escaped_base}"},
     }
     followed_query = {"type": ActivityType.ACCEPT.value}
     q = {
