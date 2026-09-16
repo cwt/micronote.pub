@@ -30,12 +30,13 @@ This index catalogs verified software defects, security vulnerabilities, and alg
 | [BUG-009](./009.md) | Unescaped Base URL in Notification Database Regular Expressions | Low | Admin Notifications | Resolved |
 | [BUG-010](./010.md) | Severe Blocking N+1 Remote HTTP Calls in Inbox Stream Feed Endpoint | Critical | Stream API / Network | Resolved |
 | [BUG-011](./011.md) | Unhandled ActivityUnavailableError in _handle_replies Crashes Worker on Remote 401/503 Replies | High | ActivityPub / Worker | Resolved |
+| [BUG-012](./012.md) | Unhandled ActivityUnavailableError in worker cache_object and cache_actor Crashes on Remote 401 Unauthorized | High | Worker / Federation | Resolved |
 
 ---
 
 ## Severity Distribution
 
 - **Critical:** 1 ([BUG-010](./010.md))
-- **High:** 5 ([BUG-001](./001.md), [BUG-002](./002.md), [BUG-004](./004.md), [BUG-008](./008.md), [BUG-011](./011.md))
+- **High:** 6 ([BUG-001](./001.md), [BUG-002](./002.md), [BUG-004](./004.md), [BUG-008](./008.md), [BUG-011](./011.md), [BUG-012](./012.md))
 - **Medium:** 3 ([BUG-003](./003.md), [BUG-005](./005.md), [BUG-007](./007.md))
 - **Low:** 2 ([BUG-006](./006.md), [BUG-009](./009.md))

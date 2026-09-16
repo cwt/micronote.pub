@@ -13,7 +13,14 @@ from datetime import UTC, datetime, timedelta
 import requests
 from active_boxes import activitypub as ap
 from active_boxes.activitypub import _to_list
-from active_boxes.errors import ActivityGoneError, ActivityNotFoundError, BadActivityError, NotAnActivityError
+from active_boxes.errors import (
+    ActivityGoneError,
+    ActivityNotFoundError,
+    ActivityUnavailableError,
+    BadActivityError,
+    Error,
+    NotAnActivityError,
+)
 from active_boxes.linked_data_sig import generate_signature
 from requests.exceptions import HTTPError
 
@@ -62,6 +69,9 @@ def process_new_activity(job) -> None:
             except (ActivityGoneError, ActivityNotFoundError):
                 # The announced activity is deleted/gone, drop it
                 should_delete = True
+            except ActivityUnavailableError as err:
+                log.warning(f"announce object for {activity!r} unavailable ({err})")
+                tag_stream = False
 
         elif activity.has_type(ap.ActivityType.CREATE):
             note = activity.get_object_sync()
@@ -78,6 +88,8 @@ def process_new_activity(job) -> None:
                 except NotAnActivityError:
                     # Most likely a reply to an OStatus notice; don't keep it.
                     should_delete = True
+                except (Error, Exception) as err:
+                    log.warning(f"inReplyTo {note.inReplyTo} not fetchable: {err}")
 
             # Forward a reply to our followers only when the author explicitly
             # addressed our followers collection AND the reply continues a local
@@ -168,19 +180,53 @@ def cache_object(job) -> None:
         activity = ap.fetch_remote_activity_sync(iri)
         log.info(f"activity={activity!r}")
 
-        obj = activity.get_object_sync()
+        try:
+            obj = activity.get_object_sync()
+        except (ActivityGoneError, ActivityNotFoundError, NotAnActivityError):
+            DB.activities.update_one({"remote_id": iri}, {"$set": {"meta.deleted": True}})
+            log.exception(f"flagging activity {iri} as deleted, object gone/not found")
+            return
+        except ActivityUnavailableError as err:
+            log.warning(f"remote object for {iri} unavailable ({err}), skipping object cache")
+            return
+
+        actor_meta = None
+        try:
+            actor = obj.get_actor_sync()
+            if actor:
+                actor_meta = activitypub._actor_to_meta(actor)
+        except (ActivityGoneError, ActivityNotFoundError, NotAnActivityError):
+            log.warning(f"object actor for {obj!r} gone or not found")
+        except (Error, Exception) as err:
+            log.warning(f"unable to fetch object actor for {obj!r}: {err}")
+
+        if not actor_meta:
+            attributed_to = getattr(obj, "attributedTo", None)
+            if attributed_to:
+                actor_meta = {
+                    "id": attributed_to,
+                    "url": attributed_to,
+                    "icon": None,
+                    "name": attributed_to,
+                    "preferredUsername": None,
+                    "emojis": {},
+                }
+
+        update_payload = {
+            "meta.object": obj.to_dict(embed=True),
+        }
+        if actor_meta:
+            update_payload["meta.object_actor"] = actor_meta
+
         DB.activities.update_one(
             {"remote_id": activity.id},
-            {
-                "$set": {
-                    "meta.object": obj.to_dict(embed=True),
-                    "meta.object_actor": activitypub._actor_to_meta(obj.get_actor_sync()),
-                }
-            },
+            {"$set": update_payload},
         )
     except (ActivityGoneError, ActivityNotFoundError, NotAnActivityError):
         DB.activities.update_one({"remote_id": iri}, {"$set": {"meta.deleted": True}})
         log.exception(f"flagging activity {iri} as deleted, no object caching")
+    except ActivityUnavailableError as err:
+        log.warning(f"remote activity {iri} unavailable ({err}), skipping cache_object without retry")
     except Exception:
         log.exception(f"failed to cache object for {iri}")
         raise
@@ -199,25 +245,54 @@ def cache_actor(job) -> None:
         if activity.has_type([ap.ActivityType.LIKE, ap.ActivityType.ANNOUNCE]):
             enqueue_job("cache_object", iri=iri)
 
-        actor = activity.get_actor_sync()
+        actor = None
+        try:
+            actor = activity.get_actor_sync()
+        except (ActivityGoneError, ActivityNotFoundError):
+            DB.activities.update_one({"remote_id": iri}, {"$set": {"meta.deleted": True}})
+            log.exception(f"flagging activity {iri} as deleted, no actor caching")
+            return
+        except (Error, Exception) as err:
+            log.warning(f"unable to fetch actor for {iri}: {err}")
 
         cache_actor_with_inbox = False
         if activity.has_type(ap.ActivityType.FOLLOW):
-            if actor.id != ID:
+            if actor and actor.id != ID:
                 # It's a Follow from the Inbox
                 cache_actor_with_inbox = True
             else:
                 # It's a new following, cache the "object" (which is the actor we follow)
-                DB.activities.update_one(
-                    {"remote_id": iri},
-                    {"$set": {"meta.object": activitypub._actor_to_meta(activity.get_object_sync())}},
-                )
+                try:
+                    follow_target = activity.get_object_sync()
+                    if follow_target:
+                        DB.activities.update_one(
+                            {"remote_id": iri},
+                            {"$set": {"meta.object": activitypub._actor_to_meta(follow_target)}},
+                        )
+                except (Error, Exception) as err:
+                    log.warning(f"unable to cache follow target for {iri}: {err}")
 
-        # Cache the actor info
-        DB.activities.update_one(
-            {"remote_id": iri},
-            {"$set": {"meta.actor": activitypub._actor_to_meta(actor, cache_actor_with_inbox)}},
-        )
+        # Cache the actor info (or fallback to basic dict if remote profile returned 401/error)
+        actor_meta = None
+        if actor:
+            actor_meta = activitypub._actor_to_meta(actor, cache_actor_with_inbox)
+        else:
+            actor_id = getattr(activity, "actor", None)
+            if actor_id:
+                actor_meta = {
+                    "id": actor_id,
+                    "url": actor_id,
+                    "icon": None,
+                    "name": actor_id,
+                    "preferredUsername": None,
+                    "emojis": {},
+                }
+
+        if actor_meta:
+            DB.activities.update_one(
+                {"remote_id": iri},
+                {"$set": {"meta.actor": actor_meta}},
+            )
 
         log.info(f"actor cached for {iri}")
         if also_cache_attachments and activity.has_type(ap.ActivityType.CREATE):
@@ -226,6 +301,8 @@ def cache_actor(job) -> None:
     except (ActivityGoneError, ActivityNotFoundError):
         DB.activities.update_one({"remote_id": iri}, {"$set": {"meta.deleted": True}})
         log.exception(f"flagging activity {iri} as deleted, no actor caching")
+    except ActivityUnavailableError as err:
+        log.warning(f"remote activity {iri} unavailable ({err}), skipping cache_actor without retry")
     except Exception:
         log.exception(f"failed to cache actor for {iri}")
         raise
