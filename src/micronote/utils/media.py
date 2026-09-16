@@ -175,7 +175,10 @@ class MediaCache:
     def cache_actor_icon(self, url: str) -> None:
         if self.get_file(url, 50, Kind.ACTOR_ICON):
             return
-        i = load(url, self.user_agent)
+        try:
+            i = load(url, self.user_agent)
+        except Exception:
+            return
         for size in [50, 80]:
             t1 = i.copy()
             t1.thumbnail((size, size))

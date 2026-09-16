@@ -250,7 +250,10 @@ def cache_attachments(job) -> None:
         icon = actor.icon
         icon_url = icon.get("url") if isinstance(icon, dict) else None
         if icon_url:
-            MEDIA_CACHE.cache(icon_url, Kind.ACTOR_ICON)
+            try:
+                MEDIA_CACHE.cache(icon_url, Kind.ACTOR_ICON)
+            except Exception:
+                log.exception(f"failed to cache actor icon {icon_url}")
 
         if activity.has_type(ap.ActivityType.CREATE):
             for attachment in activity.get_object_sync()._data.get("attachment", []):
