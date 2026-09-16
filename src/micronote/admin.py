@@ -306,17 +306,22 @@ def admin_login():
         if not (pwd and username == USERNAME and verify_pass(pwd)):
             login_error = "Incorrect username or password."
         elif credentials:
-            assertion = json.loads(request.form.get("assertion"))
-            try:
-                credential = get_server().authenticate_complete(load_state("login"), credentials, assertion)
-            except ValueError as exc:
-                current_app.logger.debug(f"webauthn failed: {exc}")
-                login_error = "Security key authentication failed."
+            raw_assertion = request.form.get("assertion")
+            state = load_state("login")
+            if not raw_assertion or not state:
+                login_error = "Security key assertion missing or session expired."
             else:
-                if credential.sign_count != 0:
-                    update_sign_count(credential.credential_id, credential.sign_count)
-            finally:
-                clear_state("login")
+                try:
+                    assertion = json.loads(raw_assertion)
+                    credential = get_server().authenticate_complete(state, credentials, assertion)
+                except (ValueError, json.JSONDecodeError, Exception) as exc:
+                    current_app.logger.debug(f"webauthn failed: {exc}")
+                    login_error = "Security key authentication failed."
+                else:
+                    if credential.sign_count != 0:
+                        update_sign_count(credential.credential_id, credential.sign_count)
+                finally:
+                    clear_state("login")
 
         if not login_error:
             session.clear()

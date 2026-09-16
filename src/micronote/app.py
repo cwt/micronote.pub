@@ -329,9 +329,17 @@ def webauthn_register():
         return render_template("webauthn_register.html", options=credential_options(options))
 
     csrf.protect()
-    credential = json.loads(request.form.get("credential"))
-    auth_data = server.register_complete(load_state("register"), credential)
-    clear_state("register")
+    raw_cred = request.form.get("credential")
+    state = load_state("register")
+    if not raw_cred or not state:
+        abort(400)
+    try:
+        credential = json.loads(raw_cred)
+        auth_data = server.register_complete(state, credential)
+    except (ValueError, json.JSONDecodeError, Exception):
+        abort(400)
+    finally:
+        clear_state("register")
     save_credential(auth_data)
     return redirect("/admin")
 
