@@ -5,12 +5,12 @@
 {% block content %}
 <div id="container">
 	{% include "header.html" %}
-	<div id="followers">
+	<div id="followers" class="actor-grid">
 	{% for follower in followers_data %}
-		<div style="height: 100px;">{{ utils.display_actor_inline(follower, size=80) }}</div>
+		<div class="actor-grid-item">{{ utils.display_actor_inline(follower, size=80) }}</div>
 	{% endfor %}
-	{{ utils.display_pagination(older_than, newer_than) }}
 	</div>
+	{{ utils.display_pagination(older_than, newer_than) }}
 </div>
 {% endblock %}
 {% block links %}

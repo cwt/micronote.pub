@@ -278,6 +278,27 @@ a:hover {
   overflow: hidden;
 }
 
+/* Followers/following grids: cards flow left-to-right and wrap onto
+   new rows on wide screens, stacking into one column on mobile. */
+.actor-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+}
+
+.actor-grid-item {
+  flex: 1 1 240px;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-menu-background);
+  border-radius: 2px;
+  padding: 12px;
+}
+
+.actor-grid-item .actor-box {
+  margin-bottom: 12px;
+}
+
 .actor-box-big {
   display: block;
   text-decoration: none;
