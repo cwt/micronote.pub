@@ -481,6 +481,7 @@ form.action-form {
   width: 90%;
   max-width: 720px;
   margin: 40px auto;
+  text-align: center;
 }
 
 .footer a, .footer a:hover, .footer a:visited {
