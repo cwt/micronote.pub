@@ -261,6 +261,7 @@ a:hover {
 
 .actor-box {
   display: block;
+  clear: both;
   text-decoration: none;
   margin-bottom: 40px;
 }
@@ -297,6 +298,18 @@ a:hover {
 
 .actor-grid-item .actor-box {
   margin-bottom: 12px;
+}
+
+/* Notification actor cards: the profile shares its top row with the
+   floated event time, so it must not clear below it
+   (display_actor_inline clears both by default for stacked lists). */
+.note .actor-event {
+  width: 100%;
+  padding-right: 10px;
+}
+
+.note .actor-event .actor-box {
+  clear: none;
 }
 
 .actor-box-big {

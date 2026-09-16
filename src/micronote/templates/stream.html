@@ -15,6 +15,7 @@
 						{% set boost_actor = item.meta.actor %}
 						{% if boost_actor %}
 							<p style="margin-bottom:0px;">
+								{{ utils.display_event_time(item) }}
 								<span class="bar-item-no-hover"><a style="color:#808080;" href="{{ boost_actor.url | get_url }}">{{ boost_actor | display_name }}</a> boosted</span>
 							</p>
 						{% endif %}
@@ -25,6 +26,7 @@
 					{% if item | has_type('Like') %}
 						{% set boost_actor = item.meta.actor %}
 						<p style="margin-bottom:0px;">
+							{{ utils.display_event_time(item) }}
 							<span class="bar-item-no-hover"><a style="color:#808080;" href="{{ boost_actor.url | get_url }}"> {{ boost_actor | display_name }}</a> liked</span>
 						</p>
 						{% if item.meta.object %}
@@ -34,16 +36,30 @@
 					{% if item | has_type('Follow') %}
 						<div style="margin-bottom:0px;">
 							<span class="bar-item-no-hover">new follower</span>
-							<form action="/api/follow" class="action-form" method="POST">
-								<input type="hidden" name="redirect" value="{{ request.path }}" />
-								<input type="hidden" name="actor" value="{{ item.meta.actor.id }}" />
-								<input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-								<button type="submit" class="bar-item">follow back</button>
-							</form>
 						</div>
 						<div class="note-box">
 							<div class="note notepad">
-								{{ utils.display_actor_inline(item.meta.actor, size=50) }}
+								<div class="actor-event">
+									{{ utils.display_event_time(item) }}
+									{{ utils.display_actor_inline(item.meta.actor, size=50) }}
+									<div class="bottom-bar">
+										{% if item.meta.actor.id in following_map %}
+										<form action="/api/undo" class="action-form" method="POST" onsubmit="return confirm('Unfollow this account?');">
+											<input type="hidden" name="redirect" value="{{ request.path }}" />
+											<input type="hidden" name="id" value="{{ following_map[item.meta.actor.id] }}" />
+											<input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+											<button type="submit" class="bar-item">unfollow</button>
+										</form>
+										{% else %}
+										<form action="/api/follow" class="action-form" method="POST">
+											<input type="hidden" name="redirect" value="{{ request.path }}" />
+											<input type="hidden" name="actor" value="{{ item.meta.actor.id }}" />
+											<input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+											<button type="submit" class="bar-item">follow back</button>
+										</form>
+										{% endif %}
+									</div>
+								</div>
 							</div>
 						</div>
 					{% elif item | has_type('Accept') %}
@@ -52,7 +68,10 @@
 						</p>
 						<div class="note-box">
 							<div class="note notepad">
-								{{ utils.display_actor_inline(item.meta.actor, size=50) }}
+								<div class="actor-event">
+									{{ utils.display_event_time(item) }}
+									{{ utils.display_actor_inline(item.meta.actor, size=50) }}
+								</div>
 							</div>
 						</div>
 					{% elif item | has_type('Undo') %}
@@ -61,7 +80,10 @@
 						</p>
 						<div class="note-box">
 							<div class="note notepad">
-								{{ utils.display_actor_inline(item.meta.actor, size=50) }}
+								<div class="actor-event">
+									{{ utils.display_event_time(item) }}
+									{{ utils.display_actor_inline(item.meta.actor, size=50) }}
+								</div>
 							</div>
 						</div>
 					{% else %}

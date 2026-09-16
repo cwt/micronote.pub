@@ -38,6 +38,27 @@ def requested_limit(default=25, maximum=100) -> int:
         return default
 
 
+def _following_map() -> dict[str, str]:
+    """Actors we already follow: actor IRI -> outbox Follow remote_id.
+
+    Lets follow-related pages offer "unfollow" instead of "follow back".
+    """
+    following_map = {}
+    for doc in DB.activities.find(
+        {
+            "box": Box.OUTBOX.value,
+            "type": ActivityType.FOLLOW.value,
+            "meta.undo": False,
+        }
+    ):
+        target = (doc.get("activity") or {}).get("object")
+        if isinstance(target, dict):
+            target = target.get("id")
+        if target and doc.get("remote_id"):
+            following_map[target] = doc["remote_id"]
+    return following_map
+
+
 @blueprint.route("/admin", methods=["GET"])
 @login_required
 def admin():
@@ -230,6 +251,7 @@ def admin_notifications():
         inbox_data=inbox_data,
         older_than=older_than,
         newer_than=newer_than,
+        following_map=_following_map(),
     )
 
 
@@ -246,7 +268,9 @@ def admin_stream():
 
     inbox_data, older_than, newer_than = paginated_query(DB.activities, q, limit=requested_limit())
 
-    return render_template(tpl, inbox_data=inbox_data, older_than=older_than, newer_than=newer_than)
+    return render_template(
+        tpl, inbox_data=inbox_data, older_than=older_than, newer_than=newer_than, following_map=_following_map()
+    )
 
 
 @blueprint.route("/admin/logout")

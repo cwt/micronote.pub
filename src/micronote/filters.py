@@ -13,6 +13,7 @@ from bleach.sanitizer import ALLOWED_ATTRIBUTES as BLEACH_DEFAULT_ATTRIBUTES
 from dateutil import parser
 from flask import current_app
 from html2text import html2text
+from neosqlite.objectid import ObjectId
 
 from micronote.config import CDN_URL, DB, ID, MEDIA_CACHE, TIMEZONE
 from micronote.utils.emoji import extract_custom_emojis, flexmoji, render_custom_emojis
@@ -255,6 +256,24 @@ def format_time(val):
             tz_name = f" GMT{TIMEZONE}"
         return (dt + tz).strftime("%b %d, %Y, %H:%M:%S") + tz_name
     return val
+
+
+@blueprint.app_template_filter()
+def event_time(doc):
+    """Best-effort event time for an activity doc.
+
+    Prefers the activity's published date; inbox records like Follow
+    rarely carry one, so falls back to the document insertion time.
+    """
+    if not isinstance(doc, dict):
+        return None
+    published = (doc.get("activity") or {}).get("published")
+    if published:
+        return published
+    try:
+        return datetime.fromtimestamp(ObjectId(str(doc["_id"])).generation_time(), UTC)
+    except Exception:
+        return None
 
 
 @blueprint.app_template_filter()
