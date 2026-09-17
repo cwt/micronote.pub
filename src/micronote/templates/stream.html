@@ -20,7 +20,7 @@
 							</p>
 						{% endif %}
 						{% if item.meta.object %}
-							{{ utils.display_note(item.meta.object, ui=True) }}
+							{{ utils.display_note(item.meta.object, ui=True, meta={'actor': item.meta.object_actor}) }}
 						{% endif %}
 					{% endif %}
 					{% if item | has_type('Like') %}
