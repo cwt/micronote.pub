@@ -3,7 +3,7 @@ import json
 import active_boxes.activitypub as ap
 import mf2py
 import requests
-from active_boxes.errors import ActivityNotFoundError
+from active_boxes.errors import ActivityNotFoundError, ActivityUnavailableError, NotAnActivityError
 from active_boxes.webfinger import get_actor_url_sync
 
 
@@ -34,10 +34,15 @@ def lookup(url: str) -> ap.BaseActivity:
                 # Maybe the page was JSON-LD?
                 data = resp.json()
                 return ap.parse_activity(data)
-            except json.JSONDecodeError:
+            except (ValueError, json.JSONDecodeError):
                 pass
     except requests.RequestException:
         pass
 
     # Try content negotiation (retry with the AP Accept header / signed fetch)
-    return ap.fetch_remote_activity_sync(url)
+    try:
+        return ap.fetch_remote_activity_sync(url)
+    except ActivityUnavailableError as err:
+        if "NotAnActivityError" in str(err) or "is not JSON" in str(err):
+            raise NotAnActivityError(f"{url} is not an activity") from err
+        raise

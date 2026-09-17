@@ -158,7 +158,10 @@ def fetch_og_metadata(job) -> None:
             for og in og_metadata:
                 if not og.get("image"):
                     continue
-                MEDIA_CACHE.cache_og_image(og["image"])
+                try:
+                    MEDIA_CACHE.cache_og_image(og["image"])
+                except Exception:
+                    log.warning(f"failed to cache OG image {og.get('image')}")
 
             log.debug(f"OG metadata {og_metadata!r}")
             DB.activities.update_one({"remote_id": iri}, {"$set": {"meta.og_metadata": og_metadata}})
@@ -166,6 +169,8 @@ def fetch_og_metadata(job) -> None:
         log.info(f"OG metadata fetched for {iri}")
     except (ActivityGoneError, ActivityNotFoundError):
         log.exception(f"dropping activity {iri}, skip OG metedata")
+    except ActivityUnavailableError as err:
+        log.warning(f"remote activity {iri} unavailable ({err}), skipping fetch_og_metadata without retry")
     except requests.exceptions.HTTPError as http_err:
         if http_err.response is not None and 400 <= http_err.response.status_code < 500:
             log.exception("bad request, no retry")

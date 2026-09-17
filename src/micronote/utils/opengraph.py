@@ -3,7 +3,6 @@ import logging
 import opengraph
 import requests
 from active_boxes import activitypub as ap
-from active_boxes.errors import NotAnActivityError
 from active_boxes.urlutils import check_url, is_url_valid
 from bs4 import BeautifulSoup
 
@@ -28,30 +27,34 @@ def links_from_note(note: dict) -> set[str]:
 def fetch_og_metadata(user_agent: str, links: set[str] | list[str]) -> list[dict]:
     res = []
     for link in links:
-        check_url(link)
-
-        # Remove any AP actor from the list
         try:
-            p = lookup(link)
-            if p.has_type(ap.ACTOR_TYPES):
+            check_url(link)
+
+            # Remove any AP actor from the list
+            try:
+                p = lookup(link)
+                if p.has_type(ap.ACTOR_TYPES):
+                    continue
+            except Exception:
+                pass
+
+            r = requests.get(link, headers={"User-Agent": user_agent}, timeout=15)
+            r.raise_for_status()
+            if not (r.headers.get("content-type") or "").startswith("text/html"):
+                logger.debug(f"skipping {link}")
                 continue
-        except NotAnActivityError:
-            pass
 
-        r = requests.get(link, headers={"User-Agent": user_agent}, timeout=15)
-        r.raise_for_status()
-        if not (r.headers.get("content-type") or "").startswith("text/html"):
-            logger.debug(f"skipping {link}")
+            r.encoding = "UTF-8"
+            html = r.text
+            try:
+                data = dict(opengraph.OpenGraph(html=BeautifulSoup(html, "html5lib")))
+            except Exception:
+                logger.exception(f"failed to parse {link}")
+                continue
+            if data.get("url"):
+                res.append(data)
+        except Exception as exc:
+            logger.warning(f"failed to fetch OG metadata for {link}: {exc}")
             continue
-
-        r.encoding = "UTF-8"
-        html = r.text
-        try:
-            data = dict(opengraph.OpenGraph(html=BeautifulSoup(html, "html5lib")))
-        except Exception:
-            logger.exception(f"failed to parse {link}")
-            continue
-        if data.get("url"):
-            res.append(data)
 
     return res
