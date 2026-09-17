@@ -134,3 +134,52 @@ def test_emojize_with_actor_emojis():
         '<img class="custom-emoji" src="https://remote.example/pepe.png" alt=":pepe:" title=":pepe:" loading="lazy">'
         in res
     )
+
+
+def test_get_file_url_enqueues_background_caching_on_miss():
+    from micronote.filters import _PENDING_CACHE_JOBS, _get_file_url
+    from micronote.utils.media import Kind
+
+    test_url = "https://remote.example/attachment-unique-123.png"
+    _PENDING_CACHE_JOBS.clear()
+
+    with (
+        app.app_context(),
+        patch("micronote.filters.MEDIA_CACHE.get_file", return_value=None),
+        patch("micronote.tasks.enqueue_job") as mock_enqueue,
+    ):
+        result = _get_file_url(test_url, 720, Kind.ATTACHMENT)
+        assert result == test_url
+        mock_enqueue.assert_called_once_with(
+            "cache_media_item",
+            iri=test_url,
+            payload={"kind": "attachment"},
+        )
+
+
+def test_enqueue_media_cache_deduplication():
+    from micronote.filters import _PENDING_CACHE_JOBS, _enqueue_media_cache
+    from micronote.utils.media import Kind
+
+    test_url = "https://remote.example/avatar-dedup.png"
+    _PENDING_CACHE_JOBS.clear()
+
+    with (
+        app.app_context(),
+        patch("micronote.tasks.enqueue_job") as mock_enqueue,
+    ):
+        _enqueue_media_cache(test_url, Kind.ACTOR_ICON)
+        _enqueue_media_cache(test_url, Kind.ACTOR_ICON)
+        # Should only have been enqueued once due to TTLCache deduplication
+        assert mock_enqueue.call_count == 1
+
+
+def test_enqueue_media_cache_skips_invalid_urls():
+    from micronote.filters import _enqueue_media_cache
+    from micronote.utils.media import Kind
+
+    with patch("micronote.tasks.enqueue_job") as mock_enqueue:
+        _enqueue_media_cache("", Kind.ATTACHMENT)
+        _enqueue_media_cache(None, Kind.ATTACHMENT)  # type: ignore[arg-type]
+        _enqueue_media_cache("/static/img.png", Kind.ATTACHMENT)
+        mock_enqueue.assert_not_called()

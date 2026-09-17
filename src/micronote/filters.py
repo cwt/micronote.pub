@@ -11,6 +11,7 @@ from active_boxes import activitypub as ap
 from active_boxes.activitypub import _to_list, get_backend
 from active_boxes.errors import ActivityGoneError, ActivityNotFoundError
 from bleach.sanitizer import ALLOWED_ATTRIBUTES as BLEACH_DEFAULT_ATTRIBUTES
+from cachetools import TTLCache
 from dateutil import parser
 from flask import current_app
 from html2text import html2text
@@ -24,6 +25,7 @@ from micronote.utils.media import Kind
 blueprint = flask.Blueprint("filters", __name__, template_folder="templates")
 
 _GRIDFS_CACHE: dict[tuple[Kind, str, int | None], str] = {}
+_PENDING_CACHE_JOBS: TTLCache[tuple[Kind, str], bool] = TTLCache(maxsize=4096, ttl=300)
 
 # HTML/templates helper
 ALLOWED_TAGS = [
@@ -76,7 +78,40 @@ def _public_media_url(path: str) -> str:
     return f"{CDN_URL}{path}" if path.startswith("/") else path
 
 
+def _enqueue_media_cache(url: str, kind: Kind) -> None:
+    if not url or not isinstance(url, str) or not (url.startswith("http://") or url.startswith("https://")):
+        return
+
+    cache_key = (kind, url)
+    if cache_key in _PENDING_CACHE_JOBS:
+        return
+
+    _PENDING_CACHE_JOBS[cache_key] = True
+
+    try:
+        existing = DB.jobs.find_one(
+            {
+                "type": "cache_media_item",
+                "iri": url,
+                "status": {"$in": ["pending", "processing"]},
+            }
+        )
+        if existing:
+            return
+
+        from micronote.tasks import enqueue_job
+
+        enqueue_job("cache_media_item", iri=url, payload={"kind": kind.value})
+    except Exception as exc:
+        try:
+            current_app.logger.warning(f"failed to enqueue media cache for {url}: {exc}")
+        except Exception:
+            pass
+
+
 def _get_file_url(url, size, kind):
+    if not url:
+        return ""
     k = (kind, url, size)
     cached = _GRIDFS_CACHE.get(k)
     if cached:
@@ -88,8 +123,11 @@ def _get_file_url(url, size, kind):
         _GRIDFS_CACHE[k] = u
         return _public_media_url(u)
 
-    # MEDIA_CACHE.cache(url, kind)
-    current_app.logger.error(f"cache not available for {url}/{size}/{kind}")
+    _enqueue_media_cache(url, kind)
+    try:
+        current_app.logger.info(f"cache not available for {url}/{size}/{kind}; enqueued background caching")
+    except Exception:
+        pass
     return url
 
 

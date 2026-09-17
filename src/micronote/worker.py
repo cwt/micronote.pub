@@ -533,6 +533,32 @@ def post_to_remote_inbox(job) -> None:
         raise
 
 
+def cache_media_item(job: dict) -> None:
+    url = job.get("iri") or (job.get("payload") or {}).get("url")
+    kind_str = (job.get("payload") or {}).get("kind")
+    if not url:
+        log.warning(f"invalid cache_media_item job without url: {job}")
+        return
+
+    try:
+        kind = Kind(kind_str) if kind_str else Kind.ATTACHMENT
+    except ValueError:
+        kind = Kind.ATTACHMENT
+
+    try:
+        log.info(f"on-demand caching media {kind.value}: {url}")
+        MEDIA_CACHE.cache(url, kind)
+    except requests.exceptions.HTTPError as http_err:
+        if http_err.response is not None and 400 <= http_err.response.status_code < 500:
+            log.warning(f"client error {http_err.response.status_code} fetching media {url}, no retry")
+            return
+        log.exception(f"failed to cache media {url}")
+        raise
+    except Exception:
+        log.exception(f"failed to cache media {url}")
+        raise
+
+
 JOB_HANDLERS = {
     "process_new_activity": process_new_activity,
     "fetch_og_metadata": fetch_og_metadata,
@@ -543,6 +569,7 @@ JOB_HANDLERS = {
     "finish_post_to_outbox": finish_post_to_outbox,
     "forward_activity": forward_activity,
     "post_to_remote_inbox": post_to_remote_inbox,
+    "cache_media_item": cache_media_item,
 }
 
 
