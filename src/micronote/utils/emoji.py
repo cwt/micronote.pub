@@ -1,5 +1,6 @@
 import html
 import re
+from collections.abc import Callable
 from urllib.parse import urlparse
 
 import emoji
@@ -76,7 +77,11 @@ def extract_custom_emojis(tags) -> dict[str, str]:
     return emojis
 
 
-def render_custom_emojis(text: str | None, emojis: dict[str, str] | None) -> Markup:
+def render_custom_emojis(
+    text: str | None,
+    emojis: dict[str, str] | None,
+    url_resolver: Callable[[str], str] | None = None,
+) -> Markup:
     """Replaces :shortcode: occurrences with <img> tags.
 
     Everything else is HTML-escaped, unknown shortcodes are left as-is,
@@ -93,8 +98,60 @@ def render_custom_emojis(text: str | None, emojis: dict[str, str] | None) -> Mar
         if shortcode not in emojis:
             continue
         parts.append(html.escape(text[pos : match.start()]))
-        url = html.escape(emojis[shortcode], quote=True)
+        raw_url = emojis[shortcode]
+        resolved_url = url_resolver(raw_url) if url_resolver else raw_url
+        url = html.escape(resolved_url, quote=True)
         parts.append(f'<img class="custom-emoji" src="{url}" alt=":{shortcode}:" title=":{shortcode}:" loading="lazy">')
         pos = match.end()
     parts.append(html.escape(text[pos:]))
+    return Markup("".join(parts))
+
+
+def render_custom_emojis_in_html(
+    html_text: str | None,
+    emojis: dict[str, str] | None = None,
+    url_resolver: Callable[[str], str] | None = None,
+) -> Markup:
+    """Renders custom and unicode emojis in sanitized HTML content.
+
+    Replaces :shortcode: with <img> tags for known custom emojis, and
+    converts standard aliases with flexmoji. HTML tags and code blocks
+    (<pre>, <code>) are preserved untouched.
+    """
+    if not html_text:
+        return Markup("")
+    if emojis is None:
+        emojis = {}
+
+    parts = []
+    in_code = 0
+    tokens = re.split(r"(<[^>]+>)", html_text)
+    for token in tokens:
+        if not token:
+            continue
+        if token.startswith("<") and token.endswith(">"):
+            tag_lower = token.lower()
+            if tag_lower.startswith("<pre") or tag_lower.startswith("<code"):
+                in_code += 1
+            elif tag_lower.startswith("</pre") or tag_lower.startswith("</code>"):
+                in_code = max(0, in_code - 1)
+            parts.append(token)
+        else:
+            if in_code > 0:
+                parts.append(token)
+            else:
+
+                def replace_match(match):
+                    shortcode = match.group(1)
+                    if shortcode in emojis:
+                        raw_url = emojis[shortcode]
+                        resolved = url_resolver(raw_url) if url_resolver else raw_url
+                        escaped_url = html.escape(resolved, quote=True)
+                        return f'<img class="custom-emoji" src="{escaped_url}" alt=":{shortcode}:" title=":{shortcode}:" loading="lazy">'
+                    return match.group(0)
+
+                text = _SHORTCODE_RE.sub(replace_match, token) if emojis else token
+                text = flexmoji(text)
+                parts.append(text)
+
     return Markup("".join(parts))

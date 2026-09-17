@@ -2,7 +2,7 @@ import hashlib
 from unittest.mock import MagicMock, patch
 
 from micronote.app import app
-from micronote.filters import get_actor, permalink_id
+from micronote.filters import emojize, get_actor, get_custom_emoji_url, permalink_id
 
 
 def test_permalink_id_deterministic():
@@ -91,3 +91,46 @@ def test_get_actor_network_fallback_and_cache():
             },
             upsert=True,
         )
+
+
+def test_get_custom_emoji_url_cached():
+    mock_file = MagicMock()
+    mock_file._id = "mock_emoji_id"
+    with patch("micronote.filters.MEDIA_CACHE.get_file", return_value=mock_file):
+        url = get_custom_emoji_url("https://remote.example/emoji.png")
+        assert url == "/media/mock_emoji_id"
+
+
+def test_get_custom_emoji_url_uncached():
+    with app.app_context(), patch("micronote.filters.MEDIA_CACHE.get_file", return_value=None):
+        url = get_custom_emoji_url("https://remote.example/uncached_emoji.png")
+        assert url == "https://remote.example/uncached_emoji.png"
+
+
+def test_emojize_with_obj_tags():
+    obj = {
+        "tag": [
+            {
+                "type": "Emoji",
+                "name": ":my_cat:",
+                "icon": {"url": "https://remote.example/cat.png"},
+            }
+        ]
+    }
+    html = "<p>Look at :my_cat: and :snake:</p>"
+    res = emojize(html, obj)
+    assert (
+        '<img class="custom-emoji" src="https://remote.example/cat.png" alt=":my_cat:" title=":my_cat:" loading="lazy">'
+        in res
+    )
+    assert "🐍" in res
+
+
+def test_emojize_with_actor_emojis():
+    actor = {"emojis": {"pepe": "https://remote.example/pepe.png"}}
+    html = "<p>Hello :pepe:</p>"
+    res = emojize(html, None, actor)
+    assert (
+        '<img class="custom-emoji" src="https://remote.example/pepe.png" alt=":pepe:" title=":pepe:" loading="lazy">'
+        in res
+    )

@@ -39,6 +39,7 @@ from micronote.tasks import (
 )
 from micronote.utils import opengraph, strtobool
 from micronote.utils.delivery import sign_delivery_request
+from micronote.utils.emoji import extract_custom_emojis
 from micronote.utils.media import Kind
 
 RESUME_TOKEN_ID = "jobs_watch"
@@ -204,6 +205,42 @@ def cache_object(job) -> None:
             {"remote_id": activity.id},
             {"$set": update_payload},
         )
+
+        obj_data = getattr(obj, "_data", None) or obj.to_dict()
+        for emoji_url in extract_custom_emojis(obj_data.get("tag", [])).values():
+            try:
+                MEDIA_CACHE.cache(emoji_url, Kind.CUSTOM_EMOJI)
+            except Exception:
+                log.exception(f"failed to cache object custom emoji {emoji_url}")
+
+        for attachment in obj_data.get("attachment", []):
+            if not isinstance(attachment, dict):
+                continue
+            url = attachment.get("url")
+            if not url:
+                continue
+            media_type = attachment.get("mediaType") or ""
+            if media_type.startswith("image/") or attachment.get("type") == ap.ActivityType.IMAGE.value:
+                try:
+                    MEDIA_CACHE.cache(url, Kind.ATTACHMENT)
+                except Exception:
+                    log.exception(f"failed to cache object attachment {attachment}")
+
+        if actor_meta:
+            if actor_meta.get("emojis"):
+                for emoji_url in actor_meta["emojis"].values():
+                    try:
+                        MEDIA_CACHE.cache(emoji_url, Kind.CUSTOM_EMOJI)
+                    except Exception:
+                        log.exception(f"failed to cache object actor emoji {emoji_url}")
+
+            icon = actor_meta.get("icon")
+            icon_url = icon.get("url") if isinstance(icon, dict) else (icon if isinstance(icon, str) else None)
+            if icon_url:
+                try:
+                    MEDIA_CACHE.cache(icon_url, Kind.ACTOR_ICON)
+                except Exception:
+                    log.exception(f"failed to cache object actor icon {icon_url}")
     except (ActivityGoneError, ActivityNotFoundError, NotAnActivityError):
         DB.activities.update_one({"remote_id": iri}, {"$set": {"meta.deleted": True}})
         log.exception(f"flagging activity {iri} as deleted, no object caching")
@@ -275,6 +312,12 @@ def cache_actor(job) -> None:
                 {"remote_id": iri},
                 {"$set": {"meta.actor": actor_meta}},
             )
+            if actor_meta.get("emojis"):
+                for emoji_url in actor_meta["emojis"].values():
+                    try:
+                        MEDIA_CACHE.cache(emoji_url, Kind.CUSTOM_EMOJI)
+                    except Exception:
+                        log.exception(f"failed to cache actor emoji {emoji_url}")
 
         log.info(f"actor cached for {iri}")
         if also_cache_attachments and activity.has_type(ap.ActivityType.CREATE):
@@ -295,7 +338,7 @@ def cache_attachments(job) -> None:
     try:
         activity = ap.fetch_remote_activity_sync(iri)
         log.info(f"activity={activity!r}")
-        # Generates thumbnails for the actor's icon and the attachments if any
+        # Generates thumbnails for the actor's icon, attachments, and emojis if any
 
         actor = activity.get_actor_sync()
 
@@ -314,8 +357,16 @@ def cache_attachments(job) -> None:
             except Exception:
                 log.exception(f"failed to cache actor icon {icon_url}")
 
+        for emoji_url in extract_custom_emojis((actor._data or {}).get("tag", [])).values():
+            try:
+                MEDIA_CACHE.cache(emoji_url, Kind.CUSTOM_EMOJI)
+            except Exception:
+                log.exception(f"failed to cache actor emoji {emoji_url}")
+
         if activity.has_type(ap.ActivityType.CREATE):
-            for attachment in activity.get_object_sync()._data.get("attachment", []):
+            note_obj = activity.get_object_sync()
+            note_data = getattr(note_obj, "_data", None) or note_obj.to_dict()
+            for attachment in note_data.get("attachment", []):
                 if not isinstance(attachment, dict):
                     continue
                 url = attachment.get("url")
@@ -328,6 +379,12 @@ def cache_attachments(job) -> None:
                         MEDIA_CACHE.cache(url, Kind.ATTACHMENT)
                     except ValueError:
                         log.exception(f"failed to cache {attachment}")
+
+            for emoji_url in extract_custom_emojis(note_data.get("tag", [])).values():
+                try:
+                    MEDIA_CACHE.cache(emoji_url, Kind.CUSTOM_EMOJI)
+                except Exception:
+                    log.exception(f"failed to cache note emoji {emoji_url}")
 
         log.info(f"attachments cached for {iri}")
 
@@ -562,6 +619,42 @@ def ensure_jobs_table() -> None:
     # it on demand, so a sentinel round-trip suffices on fresh databases.
     DB.jobs.insert_one({"type": "_init", "status": STATUS_PROCESSING})
     DB.jobs.delete_many({"type": "_init"})
+
+
+def cache_all_custom_emojis() -> int:
+    """Scans activities and cached actors to download and store all remote custom emojis in GridFS."""
+    count = 0
+    seen_urls: set[str] = set()
+
+    for doc in DB.activities.find():
+        for target in [
+            doc.get("activity", {}).get("object"),
+            doc.get("meta", {}).get("object"),
+            doc.get("meta", {}).get("actor"),
+            doc.get("meta", {}).get("object_actor"),
+        ]:
+            if isinstance(target, dict):
+                for url in extract_custom_emojis(target.get("tag", [])).values():
+                    seen_urls.add(url)
+                if isinstance(target.get("emojis"), dict):
+                    for url in target["emojis"].values():
+                        seen_urls.add(url)
+
+    for actor in DB.actors.find():
+        data = actor.get("data", {})
+        if isinstance(data, dict):
+            for url in extract_custom_emojis(data.get("tag", [])).values():
+                seen_urls.add(url)
+
+    for url in seen_urls:
+        if not MEDIA_CACHE.get_file(url, None, Kind.CUSTOM_EMOJI):
+            try:
+                MEDIA_CACHE.cache(url, Kind.CUSTOM_EMOJI)
+                count += 1
+            except Exception as exc:
+                log.warning(f"failed to cache custom emoji {url}: {exc}")
+
+    return count
 
 
 def run() -> None:

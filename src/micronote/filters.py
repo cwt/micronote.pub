@@ -17,7 +17,7 @@ from html2text import html2text
 from neosqlite.objectid import ObjectId
 
 from micronote.config import CDN_URL, DB, ID, MEDIA_CACHE, TIMEZONE
-from micronote.utils.emoji import extract_custom_emojis, flexmoji, render_custom_emojis
+from micronote.utils.emoji import extract_custom_emojis, render_custom_emojis, render_custom_emojis_in_html
 from micronote.utils.highlight import highlight_code_blocks
 from micronote.utils.media import Kind
 
@@ -132,6 +132,14 @@ def get_og_image_url(url, size=100):
 
 
 @blueprint.app_template_filter()
+def get_custom_emoji_url(url):
+    try:
+        return _get_file_url(url, None, Kind.CUSTOM_EMOJI)
+    except Exception:
+        return url
+
+
+@blueprint.app_template_filter()
 def permalink_id(val):
     if not val:
         return ""
@@ -153,11 +161,6 @@ def clean(html):
     return _clean_html(html)
 
 
-@blueprint.app_template_filter()
-def emojize(html):
-    return flexmoji(html)
-
-
 def _cached_actor_emojis(actor_id) -> dict[str, str]:
     """Custom emojis for an actor from the local actor cache (no network)."""
     if not actor_id or not isinstance(actor_id, str):
@@ -169,6 +172,32 @@ def _cached_actor_emojis(actor_id) -> dict[str, str]:
     if not doc:
         return {}
     return extract_custom_emojis((doc.get("data") or {}).get("tag"))
+
+
+@blueprint.app_template_filter()
+def emojize(html, obj=None, actor=None):
+    if not html:
+        return ""
+
+    emojis: dict[str, str] = {}
+    if actor and isinstance(actor, dict):
+        emojis.update(actor.get("emojis") or extract_custom_emojis(actor.get("tag")))
+        if not emojis and actor.get("id"):
+            emojis.update(_cached_actor_emojis(actor.get("id")))
+
+    if obj and isinstance(obj, dict):
+        if obj.get("attributedTo") and not emojis:
+            attr = obj.get("attributedTo")
+            attr_id = attr if isinstance(attr, str) else attr.get("id") if isinstance(attr, dict) else None
+            if attr_id:
+                emojis.update(_cached_actor_emojis(attr_id))
+        obj_emojis = obj.get("emojis") or extract_custom_emojis(obj.get("tag"))
+        if obj_emojis:
+            emojis.update(obj_emojis)
+    elif isinstance(obj, list):
+        emojis.update(extract_custom_emojis(obj))
+
+    return render_custom_emojis_in_html(html, emojis, url_resolver=get_custom_emoji_url)
 
 
 @blueprint.app_template_filter()
@@ -184,7 +213,11 @@ def display_name(actor):
     emojis = actor.get("emojis") or extract_custom_emojis(actor.get("tag"))
     if not emojis:
         emojis = _cached_actor_emojis(actor.get("id"))
-    return render_custom_emojis(actor.get("name") or actor.get("preferredUsername") or "", emojis)
+    return render_custom_emojis(
+        actor.get("name") or actor.get("preferredUsername") or "",
+        emojis,
+        url_resolver=get_custom_emoji_url,
+    )
 
 
 @blueprint.app_template_filter()

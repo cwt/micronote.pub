@@ -50,6 +50,7 @@ class Kind(StrEnum):
     ACTOR_ICON = "actor_icon"
     UPLOAD = "upload"
     OG_IMAGE = "og"
+    CUSTOM_EMOJI = "custom_emoji"
 
 
 def _encode_image(img) -> bytes:
@@ -213,12 +214,50 @@ class MediaCache:
         )
         return StoredUpload(str(oid), filename, mtype)
 
+    def cache_custom_emoji(self, url: str) -> None:
+        if self.get_file(url, None, Kind.CUSTOM_EMOJI):
+            return
+        try:
+            img = load(url, self.user_agent)
+        except requests.HTTPError:
+            raise
+        except (ValueError, OSError):
+            self._cache_generic_emoji(url)
+            return
+        except Exception:
+            return
+        if (img.width > 128) or (img.height > 128):
+            img.thumbnail((128, 128))
+        self._store(_encode_image(img), url, None, WEBP_MIMETYPE, Kind.CUSTOM_EMOJI)
+
+    def _cache_generic_emoji(self, url: str) -> None:
+        with requests.get(url, stream=True, headers={"User-Agent": self.user_agent}) as resp:
+            resp.raise_for_status()
+            content_type = resp.headers.get("content-type") or mimetypes.guess_type(url)[0] or ""
+            with BytesIO() as buf, GzipFile(mode="wb", fileobj=buf) as gzipped:
+                downloaded = 0
+                for chunk in resp.iter_content(chunk_size=65536):
+                    if chunk:
+                        downloaded += len(chunk)
+                        if downloaded > MAX_REMOTE_ATTACHMENT_BYTES:
+                            raise ValueError(f"emoji over size cap: {url}")
+                        gzipped.write(chunk)
+            self._store(
+                buf.getvalue(),
+                url,
+                None,
+                content_type,
+                Kind.CUSTOM_EMOJI,
+            )
+
     def cache(self, url: str, kind: Kind) -> None:
         match kind:
             case Kind.ACTOR_ICON:
                 self.cache_actor_icon(url)
             case Kind.OG_IMAGE:
                 self.cache_og_image(url)
+            case Kind.CUSTOM_EMOJI:
+                self.cache_custom_emoji(url)
             case _:
                 self.cache_attachment(url)
 
@@ -227,3 +266,6 @@ class MediaCache:
 
     def get_attachment(self, url: str, size: int) -> Any:
         return self.get_file(url, size, Kind.ATTACHMENT)
+
+    def get_custom_emoji(self, url: str) -> Any:
+        return self.get_file(url, None, Kind.CUSTOM_EMOJI)

@@ -78,3 +78,52 @@ def test_cache_actor_handles_401_actor_unauthorized():
     call_args = mock_db.activities.update_one.call_args
     set_payload = call_args[0][1]["$set"]
     assert set_payload["meta.actor"]["id"] == "https://mastodon.social/users/privateuser"
+
+
+def test_cache_object_caches_attachments_and_actor_icon():
+    mock_activity = MagicMock()
+    mock_activity.id = "https://example.com/announce/2"
+
+    mock_note = MagicMock()
+    mock_note.to_dict.return_value = {
+        "id": "https://example.com/notes/2",
+        "type": "Note",
+        "attachment": [
+            {"type": "Image", "url": "https://example.com/img1.png", "mediaType": "image/png"},
+            {"type": "Document", "url": "https://example.com/doc.pdf", "mediaType": "application/pdf"},
+        ],
+        "tag": [
+            {"type": "Emoji", "name": ":blob:", "icon": {"url": "https://example.com/blob.png"}},
+        ],
+    }
+    mock_note._data = mock_note.to_dict.return_value
+
+    mock_actor = MagicMock()
+    mock_actor.id = "https://example.com/users/alice"
+    mock_actor.url = "https://example.com/users/alice"
+    mock_actor.icon = {"type": "Image", "url": "https://example.com/alice.png"}
+    mock_actor.name = "Alice :sparkles:"
+    mock_actor.preferredUsername = "alice"
+    mock_actor._data = {
+        "tag": [{"type": "Emoji", "name": ":sparkles:", "icon": {"url": "https://example.com/sparkles.png"}}],
+    }
+    mock_note.get_actor_sync.return_value = mock_actor
+    mock_activity.get_object_sync.return_value = mock_note
+
+    mock_db = MagicMock()
+    mock_media_cache = MagicMock()
+
+    with (
+        patch("micronote.worker.ap.fetch_remote_activity_sync", return_value=mock_activity),
+        patch("micronote.worker.DB", mock_db),
+        patch("micronote.worker.MEDIA_CACHE", mock_media_cache),
+    ):
+        cache_object({"iri": mock_activity.id})
+
+    # Verify attachment, actor icon, and emojis were cached
+    from micronote.utils.media import Kind
+
+    mock_media_cache.cache.assert_any_call("https://example.com/img1.png", Kind.ATTACHMENT)
+    mock_media_cache.cache.assert_any_call("https://example.com/alice.png", Kind.ACTOR_ICON)
+    mock_media_cache.cache.assert_any_call("https://example.com/blob.png", Kind.CUSTOM_EMOJI)
+    mock_media_cache.cache.assert_any_call("https://example.com/sparkles.png", Kind.CUSTOM_EMOJI)
