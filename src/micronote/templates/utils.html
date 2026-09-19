@@ -222,7 +222,7 @@
 {% macro display_event_time(item) -%}
 {% set event_time = item | event_time %}
 {% if event_time %}
-<span style="float: right; max-width: 20%; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" class="bar-item-no-hover">
+<span style="float: right; max-width: 25%; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" class="bar-item-no-hover">
 	<time class="dt-published lcolor" title="{{ event_time | format_time }}" datetime="{{ event_time }}">{{ event_time | format_timeago }}</time>
 </span>
 {% endif %}
