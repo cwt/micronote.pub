@@ -34,13 +34,13 @@
 						{% endif %}
 					{% endif %}
 					{% if item | has_type('Follow') %}
-						<div style="margin-bottom:0px;">
+						<p style="margin-bottom:0px;">
+							{{ utils.display_event_time(item) }}
 							<span class="bar-item-no-hover">new follower</span>
-						</div>
+						</p>
 						<div class="note-box">
 							<div class="note notepad">
 								<div class="actor-event">
-									{{ utils.display_event_time(item) }}
 									{{ utils.display_actor_inline(item.meta.actor, size=50) }}
 									<div class="bottom-bar">
 										{% if item.meta.actor.id in following_map %}
@@ -64,24 +64,24 @@
 						</div>
 					{% elif item | has_type('Accept') %}
 						<p style="margin-bottom:0px;">
+							{{ utils.display_event_time(item) }}
 							<span class="bar-item-no-hover">you started following</span>
 						</p>
 						<div class="note-box">
 							<div class="note notepad">
 								<div class="actor-event">
-									{{ utils.display_event_time(item) }}
 									{{ utils.display_actor_inline(item.meta.actor, size=50) }}
 								</div>
 							</div>
 						</div>
 					{% elif item | has_type('Undo') %}
 						<p style="margin-bottom:0px;">
+							{{ utils.display_event_time(item) }}
 							<span class="bar-item-no-hover">unfollowed you</span>
 						</p>
 						<div class="note-box">
 							<div class="note notepad">
 								<div class="actor-event">
-									{{ utils.display_event_time(item) }}
 									{{ utils.display_actor_inline(item.meta.actor, size=50) }}
 								</div>
 							</div>
