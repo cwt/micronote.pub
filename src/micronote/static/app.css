@@ -39,12 +39,6 @@ html, body {
   height: 100%;
 }
 
-@media only screen and (width <= 480px) {
-  #menu-item-following {
-    display: none;
-  }
-}
-
 body {
   background-color: var(--background-color);
   color: var(--color);
