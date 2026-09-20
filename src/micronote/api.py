@@ -23,19 +23,15 @@ from micronote.config import (
     ID,
     IMAGE_MAX_SIZE,
     JWT,
-    ME,
     MEDIA_CACHE,
     _drop_db,
 )
+from micronote.instance import MY_PERSON, back
 from micronote.utils.emoji import flexmoji
 from micronote.utils.login import login_required
 
 blueprint = flask.Blueprint("api", __name__, template_folder="templates")
 csrf = CSRFProtect(current_app)
-back = activitypub.MicroblogPubBackend()
-ap.use_backend(back)
-
-MY_PERSON = ap.Person(**ME)
 
 
 def _api_required():

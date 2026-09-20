@@ -38,16 +38,12 @@ from micronote.config import (
     USERNAME,
     VERSION,
 )
+from micronote.instance import MY_PERSON, back
 from micronote.utils.headers import noindex
 from micronote.utils.key import get_secret_key
 from micronote.utils.login import login_required
 from micronote.utils.query import paginated_query
 from micronote.utils.thread import _build_thread
-
-back = activitypub.MicroblogPubBackend()
-ap.use_backend(back)
-
-MY_PERSON = ap.Person(**ME)
 
 app = Flask(__name__)
 app.register_blueprint(admin.blueprint)

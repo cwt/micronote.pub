@@ -4,18 +4,12 @@ from datetime import UTC, datetime
 
 from active_boxes import activitypub as ap
 
-from micronote import activitypub
 from micronote.activitypub import Box
-from micronote.config import BASE_URL, DB, ID, ME
+from micronote.config import BASE_URL, DB, ID
+from micronote.instance import MY_PERSON, back
 from micronote.utils import strtobool
 
 log = logging.getLogger(__name__)
-
-back = activitypub.MicroblogPubBackend()
-ap.use_backend(back)
-
-
-MY_PERSON = ap.Person(**ME)
 
 MAX_RETRIES = int(os.getenv("MICRONOTE_MAX_RETRIES", "3"))
 
