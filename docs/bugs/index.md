@@ -38,12 +38,12 @@ This index catalogs verified software defects, security vulnerabilities, and alg
 | Bug ID | Title | Severity | Component | Status |
 | --- | --- | --- | --- | --- |
 | [BUG-014](./014.md) | Infinite Recursion in _build_thread When inReplyTo Self-References | High | Thread Builder | Open |
-| [BUG-015](./015.md) | outbox_delete Calls get_object_sync() Three Times, Triggering Redundant Remote Fetches | Medium | ActivityPub Backend | Open |
+| [BUG-015](./015.md) | outbox_delete Calls get_object_sync() Multiple Times Redundantly | Low | ActivityPub Backend | Open |
 | [BUG-016](./016.md) | Duplicate post_to_outbox Logic in tasks.py and activitypub.py | Low | Outbox Post / Dead Code | Open |
 | [BUG-017](./017.md) | serve_grid_file Content-Type Fallback Allows MIME Confusion on /uploads Endpoint | Medium | Media Serving | Open |
 | [BUG-018](./018.md) | _GRIDFS_CACHE Is Unbounded and Grows Without Eviction in Gunicorn Workers | Medium | Template Filters / Memory | Open |
 | [BUG-019](./019.md) | _PENDING_CACHE_JOBS DB Dedup Query Is Kind-Blind, Silently Drops Jobs | Low | Media Cache / Worker | Open |
-| [BUG-020](./020.md) | inject_config Runs 5 Separate count_documents Queries on Every Page Load | Low | Context Processor / Performance | Open |
+| [BUG-020](./020.md) | inject_config Runs 5 Separate count_documents Queries on Every Template Render | Low | Context Processor / Performance | Open |
 | [BUG-021](./021.md) | /drop_cache Route Has No DEBUG_MODE Guard and Can Wipe Production Caches | Medium | Admin / Security | Open |
 | [BUG-022](./022.md) | admin.html Receives Unused 'instances' Variable from Empty Collection Query | Low | Admin / Dead Code | Open |
 | [BUG-023](./023.md) | Pin/Unpin API Does Not Invalidate Page Cache, Serving Stale Homepage for 12h | Medium | Cache / API Consistency | Open |
@@ -61,5 +61,5 @@ This index catalogs verified software defects, security vulnerabilities, and alg
 
 **Open:**
 - **High:** 1 (BUG-014)
-- **Medium:** 5 (BUG-015, BUG-017, BUG-018, BUG-021, BUG-023)
-- **Low:** 5 (BUG-016, BUG-019, BUG-020, BUG-022, BUG-024)
+- **Medium:** 4 (BUG-017, BUG-018, BUG-021, BUG-023)
+- **Low:** 6 (BUG-015, BUG-016, BUG-019, BUG-020, BUG-022, BUG-024)
