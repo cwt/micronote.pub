@@ -13,7 +13,7 @@ sources:
   - src/micronote/filters.py
   - src/micronote/api.py
   - src/micronote/admin.py
-verified: machine-confirmed
+verified: unverified
 stale_after: 2027-09-20T00:00:00Z
 tags: [architecture, refactoring, separation-of-concerns, plan, maintainability]
 timestamp: 2026-09-20T00:00:00Z
@@ -139,9 +139,10 @@ same work in the current file layout and leave a note in the phase status.
 ### Steps
 
 1. Record the baseline: run `make lint` and `pytest`, confirm green, and note
-   the pass count in the [Phase Status](#phase-status) table. Resolve the
-   pre-existing stylelint failure in `src/micronote/static/app.css:183`
-   (`padding: 5px 5px` → `5px`) so `make lint-web` passes as well.
+   the pass count in the [Phase Status](#phase-status) table. Run `make lint-web`
+   and fix **all** pre-existing failures it reports (at minimum the redundant
+   `padding: 5px 5px` shorthand in `src/micronote/static/app.css:183`) so the
+   baseline is fully green.
 2. Add `tests/test_url_map.py`: snapshot the sorted `(rule, methods)` pairs
    from `app.url_map`. **Do not snapshot endpoint names** — they change when
    routes move into blueprints in Phase 3.
@@ -197,7 +198,7 @@ None. This phase only adds tests.
   - `activitypub._actor_to_meta` / `_safe_object_actor_meta` — `worker.py:201,294,302`
   - `_COUNTS_CACHE` — `tests/test_inject_config.py`, `tests/test_drop_cache.py`
 - `tasks.py` imports `activitypub` only for the `Box` enum, creating a
-  logical cycle with the backend's `post_to_outbox` delegation
+  logical cycle with the backend's dead `post_to_outbox` delegation
   (`activitypub.py:653-656`).
 - Dead code: `set_post_to_remote_inbox` (`activitypub.py:360`), a commented
   actor-cache block (`activitypub.py:311-316`), a commented error handler
@@ -214,10 +215,15 @@ None. This phase only adds tests.
    `activitypub.py:141-144`. Update importers (`activitypub`, `tasks`, `app`,
    `admin`, `api`, `dedup`, tests). This removes the `tasks → activitypub`
    module edge.
-3. With `tasks.py` no longer importing `activitypub`, promote the function-level
-   import `from micronote.tasks import post_to_outbox` in `activitypub.py:654`
-   (`MicroblogPubBackend.post_to_outbox`) to a standard top-level module import.
-   Update `tasks.py` to import `enqueue_job` from `jobs`. Update
+3. Delete the dead delegation method `MicroblogPubBackend.post_to_outbox`
+   (`activitypub.py:653-656`): it is not part of the
+   `active_boxes.backend.Backend` ABC and the library never calls it. Do **not**
+   promote its function-level import to top-level — that reintroduces the cycle
+   `activitypub → tasks → instance → activitypub` (verified empirically: it
+   breaks `import micronote.app` and `import micronote.worker` even after the
+   `boxes.py` move). Update `tests/test_activitypub_delete.py:63-73` to call
+   `tasks.post_to_outbox` directly instead of `backend.post_to_outbox`.
+   Then update `tasks.py` to import `enqueue_job` from `jobs`. Update
    `filters.py:104` and `worker.py` likewise. Update tests that patch
    `micronote.tasks.enqueue_job` to patch `micronote.jobs.enqueue_job`
    (`tests/test_filters.py:149,169,181,218`).
@@ -239,7 +245,8 @@ None. This phase only adds tests.
 - `src/micronote/jobs.py` (new), `src/micronote/boxes.py` (new)
 - `src/micronote/tasks.py`, `worker.py`, `activitypub.py`, `config.py`,
   `api.py`, `app.py`, `admin.py`, `filters.py`, `utils/thread.py`
-- `tests/test_filters.py`, `tests/test_thread.py`, `tests/test_imports.py`
+- `tests/test_filters.py`, `tests/test_thread.py`, `tests/test_imports.py`,
+  `tests/test_activitypub_delete.py`
 
 ### Verification
 
@@ -276,10 +283,12 @@ Phase 0 (import and URL guards).
 ### Steps
 
 1. Create `src/micronote/cache.py` (Flask-free domain module):
-   - `get_page(path, type_="html", arg=None, authenticated=False)` and
-     `set_page(path, data, type_="html", arg=None, authenticated=False)` with
-     the `CACHING` switch moved here from `app.py:376`. Explicit parameters keep
-     `cache.py` decoupled from Flask's `request` and `session` globals.
+   - `get_page(path, type_="html", arg=None)` and
+     `set_page(path, data, type_="html", arg=None)` with the `CACHING` switch
+     moved here from `app.py:376`. Explicit parameters keep `cache.py` decoupled
+     from Flask's `request` and `session` globals; auth awareness lives only in
+     the `@page_cache` decorator (Phase 4), which bypasses the cache entirely
+     when the session is logged in.
    - Support both `"html"` and `"api"` cache types (preserving the cached API
      response for `/nodeinfo` at `app.py:512,541`).
    - `invalidate_for_activity(activity)` — move the policy from
@@ -294,8 +303,8 @@ Phase 0 (import and URL guards).
      `cache.invalidate_for_activity`; `post_to_outbox` calls `cache.clear()`.
    - `api.py:166,180`, `worker.py:476`, `app.py:371-372` call `cache.clear()`.
    - `app.py` read path uses `cache.get_page` / `cache.set_page` (passing
-     `request.path` and `bool(session.get("logged_in"))`); `/nodeinfo` uses
-     `type_="api"`; `inject_config` uses `stats.counts()`.
+     `request.path`), guarded by the existing `session.get("logged_in")` check;
+     `/nodeinfo` uses `type_="api"`; `inject_config` uses `stats.counts()`.
 4. Update tests: `tests/test_inject_config.py`, `tests/test_drop_cache.py`
    (`_COUNTS_CACHE` imports), `tests/test_pin_cache_invalidation.py`, and the
    `micronote.worker.tasks.invalidate_cache` patch target in
@@ -354,7 +363,10 @@ Phase 1 (`jobs.py` exists; `worker.py` imports are clean).
 4. Move route groups into blueprints, preserving rules, methods, and
    behavior:
    - `views.py`: `index`, `with_replies`, `note_by_id`, `tags`,
-     `followers`, `following`, `liked`, `drop_cache` (debug-only POST).
+     `followers`, `following`, `liked`.
+   - `admin.py` (existing blueprint): move `drop_cache` here from `app.py`
+     (login-gated debug POST; the admin blueprint already provides a CSRF
+     handle, and maintenance endpoints do not belong in view modules).
    - `ap_routes.py`: `outbox`, `outbox_detail`, `outbox_activity`,
      `outbox_activity_replies`, `outbox_activity_likes`,
      `outbox_activity_shares`, `inbox`, `featured`.
@@ -371,13 +383,14 @@ Phase 1 (`jobs.py` exists; `worker.py` imports are clean).
    - `app.py:492` becomes `url_for("ap.outbox_activity", item_id=note_id)`.
      (Template `url_for` calls are already blueprint-qualified and unchanged).
    - Update patch targets in `tests/test_drop_cache.py` from `micronote.app.*`
-     to `micronote.views.*`.
+     to `micronote.admin.*`.
 
 ### Files
 
 - `src/micronote/web.py`, `ap_serialize.py`, `views.py`, `ap_routes.py`,
   `wellknown.py`, `media_routes.py`, `auth_views.py` (new)
-- `src/micronote/app.py`, `activitypub.py`, `feeds.py`
+- `src/micronote/app.py`, `activitypub.py`, `feeds.py`, `admin.py`
+- `tests/test_drop_cache.py`
 
 ### Verification
 
@@ -425,14 +438,18 @@ same moves in place and keep the private names until Phase 1 lands.
          return view
      ```
 
-   - `@activitypub_only` for protocol endpoints that reject browser/HTML traffic with 404:
+   - `@activitypub_only` for protocol endpoints that reject browser/HTML GET
+     traffic with 404. It must only gate `GET`/`HEAD`: the POST branches of
+     `/outbox` (client-to-server submission, `app.py:716-719`) and `/inbox`
+     (HTTP-signature delivery, `app.py:896-937`) never required an AP `Accept`
+     header, and federated servers often omit it.
 
      ```python
      def activitypub_only(view_func):
-         """Reject non-ActivityPub requests with HTTP 404."""
+         """Reject browser/HTML GET requests with HTTP 404; leave POSTs alone."""
          @wraps(view_func)
          def view(**kwargs):
-             if not is_api_request():
+             if request.method in ("GET", "HEAD") and not is_api_request():
                  abort(404)
              return view_func(**kwargs)
          return view
@@ -656,9 +673,11 @@ move only the handlers.
    `version()`, `key()`, `me()`, `jwt()`, `admin_api_key()`,
    `flask_secret_key()`, and `user_agent()`. Keep pure settings constants as
    module-level values. Implement Python module-level `__getattr__` in `config.py`
-   to lazily evaluate `ME`, `KEY`, and `VERSION` on first attribute access. This
-   guarantees backward compatibility with Jinja templates (`config.ME.url`,
-   `config.ME.icon.url`) and existing callers without eager import-time execution.
+   that **delegates** to those accessors for `ME`, `KEY`, and `VERSION`
+   (`return me()`, never a second implementation) and raises `AttributeError`
+   for unknown names. This keeps Jinja templates (`config.ME.url`,
+   `config.ME.icon.url`) and existing callers working without eager
+   import-time execution. Add a test asserting all three names resolve lazily.
 2. Update call sites:
    - `app.py`: Flask secret key (`app.py:54`), context processor, and
      `activity_json()` content type.
@@ -669,6 +688,10 @@ move only the handlers.
    - `instance.py`: build `MY_PERSON` from `me()`.
    - Tests: `tests/test_authorized_fetch.py`, `tests/test_reply_handling.py`,
      `tests/test_activitypub_delete.py`.
+   - Delete the `USER_AGENT` module constant (`config.py:100`) once all call
+     sites use `user_agent()`. Leaving it in place would evaluate `VERSION`
+     eagerly and defeat the deferral; it is imported by `activitypub.py`,
+     `worker.py`, and `tests/test_authorized_fetch.py`.
 3. Verify that importing `micronote.config` alone performs no file writes
    and no subprocess calls.
 
