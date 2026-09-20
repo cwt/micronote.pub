@@ -650,24 +650,10 @@ class MicroblogPubBackend(Backend):
                 {"$set": {"meta.thread_root_parent": root_reply}},
             )
 
-    def post_to_outbox(self, activity: ap.BaseActivity) -> None:
-        if activity.has_type(ap.CREATE_TYPES):
-            activity = activity.build_create()
+    def post_to_outbox(self, activity: ap.BaseActivity) -> str:
+        from micronote.tasks import post_to_outbox
 
-        self.save(Box.OUTBOX, activity)
-
-        # Assign create a random ID
-        obj_id = self.random_object_id()
-        activity.set_id(self.activity_url(obj_id), obj_id)
-
-        recipients = activity.recipients()
-        logger.info(f"recipients={recipients}")
-        activity = ap.clean_activity(activity.to_dict())
-
-        payload = json_dumps(activity)
-        for recp in recipients:
-            logger.debug(f"posting to {recp}")
-            self.post_to_remote_inbox(self.get_actor_sync(), payload, recp)
+        return post_to_outbox(activity)
 
 
 def gen_feed():
