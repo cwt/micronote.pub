@@ -157,19 +157,21 @@ class MediaCache:
         # (capped: remote hosts are untrusted, never buffer unbounded bytes).
         with requests.get(url, stream=True, headers={"User-Agent": self.user_agent}) as resp:
             resp.raise_for_status()
-            with BytesIO() as buf, GzipFile(mode="wb", fileobj=buf) as gzipped:
-                downloaded = 0
-                for chunk in resp.iter_content(chunk_size=65536):
-                    if chunk:
-                        downloaded += len(chunk)
-                        if downloaded > MAX_REMOTE_ATTACHMENT_BYTES:
-                            raise ValueError(f"attachment over size cap: {url}")
-                        gzipped.write(chunk)
+            with BytesIO() as buf:
+                with GzipFile(mode="wb", fileobj=buf) as gzipped:
+                    downloaded = 0
+                    for chunk in resp.iter_content(chunk_size=65536):
+                        if chunk:
+                            downloaded += len(chunk)
+                            if downloaded > MAX_REMOTE_ATTACHMENT_BYTES:
+                                raise ValueError(f"attachment over size cap: {url}")
+                            gzipped.write(chunk)
+                raw = buf.getvalue()
             self._store(
-                buf.getvalue(),
+                raw,
                 url,
                 None,
-                mimetypes.guess_type(url)[0],
+                mimetypes.guess_type(url)[0] or "application/octet-stream",
                 Kind.ATTACHMENT,
             )
 
@@ -201,9 +203,11 @@ class MediaCache:
             mtype = WEBP_MIMETYPE
         else:
             obuf.seek(0)
-            with BytesIO() as gbuf, GzipFile(mode="wb", fileobj=gbuf) as gzipfile:
-                gzipfile.write(obuf.getvalue())
-            raw = gbuf.getvalue()
+            with BytesIO() as gbuf:
+                with GzipFile(mode="wb", fileobj=gbuf) as gzipfile:
+                    gzipfile.write(obuf.getvalue())
+                raw = gbuf.getvalue()
+            mtype = mtype or "application/octet-stream"
 
         oid = self._store(
             raw,
@@ -233,17 +237,21 @@ class MediaCache:
     def _cache_generic_emoji(self, url: str) -> None:
         with requests.get(url, stream=True, headers={"User-Agent": self.user_agent}) as resp:
             resp.raise_for_status()
-            content_type = resp.headers.get("content-type") or mimetypes.guess_type(url)[0] or ""
-            with BytesIO() as buf, GzipFile(mode="wb", fileobj=buf) as gzipped:
-                downloaded = 0
-                for chunk in resp.iter_content(chunk_size=65536):
-                    if chunk:
-                        downloaded += len(chunk)
-                        if downloaded > MAX_REMOTE_ATTACHMENT_BYTES:
-                            raise ValueError(f"emoji over size cap: {url}")
-                        gzipped.write(chunk)
+            content_type = (
+                resp.headers.get("content-type") or mimetypes.guess_type(url)[0] or "application/octet-stream"
+            )
+            with BytesIO() as buf:
+                with GzipFile(mode="wb", fileobj=buf) as gzipped:
+                    downloaded = 0
+                    for chunk in resp.iter_content(chunk_size=65536):
+                        if chunk:
+                            downloaded += len(chunk)
+                            if downloaded > MAX_REMOTE_ATTACHMENT_BYTES:
+                                raise ValueError(f"emoji over size cap: {url}")
+                            gzipped.write(chunk)
+                raw = buf.getvalue()
             self._store(
-                buf.getvalue(),
+                raw,
                 url,
                 None,
                 content_type,

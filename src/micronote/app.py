@@ -233,11 +233,13 @@ def serve_grid_file(grid_out):
         last_modified = parsed_date.strftime("%a, %d %b %Y %H:%M:%S GMT")
     except (TypeError, ValueError):
         last_modified = upload_date
-    resp = app.response_class(data, mimetype=(grid_out.metadata or {}).get("content_type"))
+    content_type = (grid_out.metadata or {}).get("content_type") or "application/octet-stream"
+    resp = app.response_class(data, mimetype=content_type)
     resp.headers.set("Content-Length", len(data))
     resp.headers.set("ETag", grid_out.md5)
     resp.headers.set("Last-Modified", last_modified)
     resp.headers.set("Cache-Control", "public,max-age=31536000,immutable")
+    resp.headers.set("X-Content-Type-Options", "nosniff")
     if data[:2] == GZIP_MAGIC:
         # Legacy entries and non-image blobs are gzip-compressed;
         # WebP entries are stored raw.

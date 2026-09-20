@@ -35,12 +35,12 @@ This index catalogs verified software defects, security vulnerabilities, and alg
 | [BUG-014](./014.md) | Infinite Recursion in _build_thread When inReplyTo Self-References | High | Thread Builder | Resolved |
 | [BUG-015](./015.md) | outbox_delete Calls get_object_sync() Multiple Times Redundantly | Low | ActivityPub Backend | Resolved |
 | [BUG-016](./016.md) | Duplicate post_to_outbox Logic in tasks.py and activitypub.py | Low | Outbox Post / Dead Code | Resolved |
+| [BUG-017](./017.md) | serve_grid_file Content-Type Fallback Allows MIME Confusion on /uploads Endpoint | Medium | Media Serving | Resolved |
 
 ## Active Defect Reports
 
 | Bug ID | Title | Severity | Component | Status |
 | --- | --- | --- | --- | --- |
-| [BUG-017](./017.md) | serve_grid_file Content-Type Fallback Allows MIME Confusion on /uploads Endpoint | Medium | Media Serving | Open |
 | [BUG-018](./018.md) | _GRIDFS_CACHE Is Unbounded and Grows Without Eviction in Gunicorn Workers | Medium | Template Filters / Memory | Open |
 | [BUG-019](./019.md) | _PENDING_CACHE_JOBS DB Dedup Query Is Kind-Blind, Silently Drops Jobs | Low | Media Cache / Worker | Open |
 | [BUG-020](./020.md) | inject_config Runs 5 Separate count_documents Queries on Every Template Render | Low | Context Processor / Performance | Open |
@@ -56,10 +56,10 @@ This index catalogs verified software defects, security vulnerabilities, and alg
 **Resolved:**
 - **Critical:** 1 (BUG-010)
 - **High:** 8 (BUG-001, BUG-002, BUG-004, BUG-008, BUG-011, BUG-012, BUG-013, BUG-014)
-- **Medium:** 3 (BUG-003, BUG-005, BUG-007)
+- **Medium:** 4 (BUG-003, BUG-005, BUG-007, BUG-017)
 - **Low:** 4 (BUG-006, BUG-009, BUG-015, BUG-016)
 
 **Open:**
 - **High:** 0
-- **Medium:** 4 (BUG-017, BUG-018, BUG-021, BUG-023)
+- **Medium:** 3 (BUG-018, BUG-021, BUG-023)
 - **Low:** 4 (BUG-019, BUG-020, BUG-022, BUG-024)

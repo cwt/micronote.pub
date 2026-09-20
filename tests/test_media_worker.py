@@ -148,3 +148,33 @@ def test_cache_media_item_ignores_empty_url():
     with patch("micronote.worker.MEDIA_CACHE.cache") as mock_cache:
         cache_media_item({"iri": None, "payload": {}})
         mock_cache.assert_not_called()
+
+
+def test_serve_grid_file_mimetype_fallback_and_nosniff():
+    from micronote.app import app, serve_grid_file
+
+    mock_grid = MagicMock()
+    mock_grid.read.return_value = b"binary payload"
+    mock_grid.upload_date = "2026-09-20T00:00:00Z"
+    mock_grid.md5 = "testmd5"
+    mock_grid.metadata = None  # None or missing content_type
+
+    with app.app_context():
+        resp = serve_grid_file(mock_grid)
+        assert resp.mimetype == "application/octet-stream"
+        assert resp.headers.get("X-Content-Type-Options") == "nosniff"
+        assert "text/html" not in resp.headers.get("Content-Type", "")
+
+
+def test_save_upload_unknown_extension_stores_octet_stream():
+    from io import BytesIO
+
+    mock_factory = MagicMock()
+    media_cache = MediaCache(mock_factory, "test-user-agent")
+
+    with patch.object(media_cache, "_store", return_value="fake_oid") as mock_store:
+        stored = media_cache.save_upload(BytesIO(b"data"), "unknown.xyz123", (1000, 1000))
+        assert stored.mimetype == "application/octet-stream"
+        mock_store.assert_called_once()
+        _, _, _, stored_mtype, _ = mock_store.call_args[0]
+        assert stored_mtype == "application/octet-stream"
