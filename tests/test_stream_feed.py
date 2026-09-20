@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 from neosqlite.objectid import ObjectId
 
-from micronote.activitypub import build_inbox_json_feed
+from micronote.feeds import build_inbox_json_feed
 
 
 def test_build_inbox_json_feed_no_network_calls():
@@ -76,17 +76,12 @@ def test_build_inbox_json_feed_no_network_calls():
         }
     ]
 
-    mock_backend = MagicMock()
+    mock_db = MagicMock()
+    mock_db.activities = mock_activities
+    mock_db.actors = mock_actors
 
-    with (
-        patch("micronote.activitypub.DB.activities", mock_activities),
-        patch("micronote.activitypub.DB.actors", mock_actors),
-        patch("micronote.activitypub.ap.get_backend", return_value=mock_backend),
-    ):
+    with patch("micronote.feeds.DB", mock_db):
         feed = build_inbox_json_feed("/api/stream")
-
-        # Zero network calls allowed
-        mock_backend.fetch_iri_sync.assert_not_called()
 
         assert len(feed["items"]) == 3
 

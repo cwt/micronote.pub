@@ -12,7 +12,7 @@ from flask_wtf.csrf import CSRFProtect
 from itsdangerous import BadSignature
 from werkzeug.utils import secure_filename
 
-from micronote import activitypub, cache, tasks
+from micronote import activitypub, cache, feeds, tasks
 from micronote.boxes import Box
 from micronote.config import (
     ADMIN_API_KEY,
@@ -292,7 +292,7 @@ def api_new_note():
 @api_required
 def api_stream():
     return Response(
-        response=activitypub.json_dumps(activitypub.build_inbox_json_feed("/api/stream", request.args.get("cursor"))),
+        response=activitypub.json_dumps(feeds.build_inbox_json_feed("/api/stream", request.args.get("cursor"))),
         headers={"Content-Type": "application/json"},
     )
 

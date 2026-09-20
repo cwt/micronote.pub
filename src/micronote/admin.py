@@ -14,10 +14,12 @@ from active_boxes.errors import (
     UnexpectedActivityTypeError,
 )
 from flask import abort, current_app, redirect, render_template, request, session, url_for
+from flask import jsonify as flask_jsonify
 from flask_wtf.csrf import CSRFProtect
 
+from micronote import cache
 from micronote.boxes import Box
-from micronote.config import BASE_URL, DB, DOMAIN, PASS, USERNAME
+from micronote.config import BASE_URL, DB, DEBUG_MODE, DOMAIN, PASS, USERNAME
 from micronote.utils.headers import noindex
 from micronote.utils.login import login_required, safe_next_url
 from micronote.utils.lookup import lookup
@@ -91,6 +93,17 @@ def admin():
             }
         ),
     )
+
+
+@blueprint.route("/drop_cache", methods=["POST"])
+@login_required
+def drop_cache():
+    if not DEBUG_MODE:
+        return flask_jsonify(message="DEBUG_MODE is off"), 403
+    csrf.protect()
+    DB.actors.drop()
+    cache.clear()
+    return "Done"
 
 
 @blueprint.route("/admin/lookup", methods=["GET", "POST"])

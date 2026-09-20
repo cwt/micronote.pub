@@ -151,7 +151,8 @@ def test_cache_media_item_ignores_empty_url():
 
 
 def test_serve_grid_file_mimetype_fallback_and_nosniff():
-    from micronote.app import app, serve_grid_file
+    from micronote.app import app
+    from micronote.media_routes import serve_grid_file
 
     mock_grid = MagicMock()
     mock_grid.read.return_value = b"binary payload"

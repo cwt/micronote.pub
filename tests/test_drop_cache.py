@@ -16,7 +16,7 @@ def test_drop_cache_rejected_when_debug_mode_off():
     with app.test_client() as client:
         with client.session_transaction() as sess:
             sess["logged_in"] = True
-        with patch("micronote.app.DEBUG_MODE", False):
+        with patch("micronote.admin.DEBUG_MODE", False):
             resp = client.post("/drop_cache")
             assert resp.status_code == 403
             assert resp.get_json() == {"message": "DEBUG_MODE is off"}
@@ -35,9 +35,9 @@ def test_drop_cache_succeeds_when_debug_mode_on():
         with client.session_transaction() as sess:
             sess["logged_in"] = True
         with (
-            patch("micronote.app.DEBUG_MODE", True),
-            patch("micronote.app.csrf.protect"),
-            patch("micronote.app.DB", mock_db),
+            patch("micronote.admin.DEBUG_MODE", True),
+            patch("micronote.admin.csrf.protect"),
+            patch("micronote.admin.DB", mock_db),
             patch("micronote.cache.DB", mock_cache_db),
         ):
             resp = client.post("/drop_cache")

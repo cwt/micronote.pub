@@ -4,7 +4,7 @@ import pytest
 from neosqlite.objectid import ObjectId
 from werkzeug.exceptions import BadRequest
 
-from micronote.activitypub import build_ordered_collection
+from micronote.ap_serialize import build_ordered_collection
 
 
 def test_build_ordered_collection_query_immutability():

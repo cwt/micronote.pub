@@ -19,22 +19,16 @@ from active_boxes.errors import (
 from active_boxes.http_client import get_http_client
 from active_boxes.urlutils import URLLookupFailedError
 from cachetools import LRUCache
-from feedgen.feed import FeedGenerator
-from flask import abort
-from html2text import html2text
-from neosqlite.objectid import ObjectId
 
 from micronote.boxes import Box
 from micronote.config import (
     BASE_URL,
-    DB,
     DB_NAME,
     EXTRA_INBOXES,
     ID,
     KEY,
     ME,
     USER_AGENT,
-    USERNAME,
     create_db_client,
 )
 from micronote.utils.delivery import sign_fetch_request
@@ -117,13 +111,6 @@ def safe_object_actor_meta(obj: ap.BaseActivity | ap.BaseObject) -> dict[str, An
                 "emojis": {},
             }
     return actor_meta
-
-
-def _remove_id(doc: ap.ObjectType) -> ap.ObjectType:
-    """Helper for removing MongoDB's `_id` field."""
-    doc = doc.copy()
-    doc.pop("_id", None)
-    return doc
 
 
 def ensure_it_is_me(f):
@@ -633,211 +620,3 @@ class MicroblogPubBackend(Backend):
                 {"box": Box.REPLIES.value, "remote_id": {"$in": new_threads}},
                 {"$set": {"meta.thread_root_parent": root_reply}},
             )
-
-def gen_feed():
-    fg = FeedGenerator()
-    fg.id(f"{ID}")
-    fg.title(f"{USERNAME} notes")
-    fg.author({"name": USERNAME, "email": "t@a4.io"})
-    fg.link(href=ID, rel="alternate")
-    fg.description(f"{USERNAME} notes")
-    fg.logo(ME.get("icon", {}).get("url"))
-    fg.language("en")
-    for item in DB.activities.find({"box": Box.OUTBOX.value, "type": "Create", "meta.deleted": False}, limit=10).sort(
-        "_id", -1
-    ):
-        fe = fg.add_entry()
-        fe.id(item["activity"]["object"].get("url"))
-        fe.link(href=item["activity"]["object"].get("url"))
-        fe.title(item["activity"]["object"]["content"])
-        fe.description(item["activity"]["object"]["content"])
-    return fg
-
-
-def _feed_item(item: dict[str, Any], author: dict[str, Any] | None = None) -> dict[str, Any]:
-    """One JSON Feed entry; `author` is only set for inbox activities."""
-    note = item["activity"]["object"]
-    entry = {
-        "id": item["activity"]["id"],
-        "url": note.get("url"),
-        "content_html": note["content"],
-        "content_text": html2text(note["content"]),
-        "date_published": note.get("published"),
-    }
-    if author is not None:
-        entry["author"] = author
-    return entry
-
-
-def json_feed(path: str) -> dict[str, Any]:
-    """JSON Feed (https://jsonfeed.org/) document."""
-    items = DB.activities.find({"box": Box.OUTBOX.value, "type": "Create", "meta.deleted": False}, limit=10).sort(
-        "_id", -1
-    )
-    data = [_feed_item(item) for item in items]
-    return {
-        "version": "https://jsonfeed.org/version/1",
-        "user_comment": (
-            f"This is a micronote.pub feed. You can add this to your feed reader using the following URL: {ID}{path}"
-        ),
-        "title": USERNAME,
-        "home_page_url": ID,
-        "feed_url": f"{ID}{path}",
-        "author": {
-            "name": USERNAME,
-            "url": ID,
-            "avatar": ME.get("icon", {}).get("url"),
-        },
-        "items": data,
-    }
-
-
-def build_inbox_json_feed(path: str, request_cursor: str | None = None) -> dict[str, Any]:
-    """Build a JSON feed from the inbox activities."""
-    q: dict[str, Any] = {
-        "type": "Create",
-        "meta.deleted": False,
-        "box": Box.INBOX.value,
-    }
-    if request_cursor:
-        try:
-            q["_id"] = {"$lt": ObjectId(request_cursor)}
-        except Exception:
-            abort(400)
-
-    items = list(DB.activities.find(q, limit=50).sort("_id", -1))
-
-    missing_iris = {
-        item.get("activity", {}).get("actor")
-        for item in items
-        if not item.get("meta", {}).get("actor") and item.get("activity", {}).get("actor")
-    }
-    cached_actors: dict[str, dict[str, Any]] = {}
-    if missing_iris:
-        for actor_doc in DB.actors.find({"remote_id": {"$in": list(missing_iris)}}):
-            remote_id = actor_doc.get("remote_id")
-            if remote_id and actor_doc.get("data"):
-                cached_actors[remote_id] = actor_doc["data"]
-
-    data = []
-    for item in items:
-        activity = item.get("activity", {})
-        actor_iri = activity.get("actor")
-        meta_actor = item.get("meta", {}).get("actor")
-        if not meta_actor and actor_iri:
-            meta_actor = cached_actors.get(actor_iri, {})
-
-        if not isinstance(meta_actor, dict):
-            meta_actor = {}
-
-        name = meta_actor.get("name") or meta_actor.get("preferredUsername") or actor_iri or ""
-        url = meta_actor.get("url") or actor_iri or ""
-        icon = meta_actor.get("icon")
-        avatar = icon.get("url") if isinstance(icon, dict) else None
-
-        author_info = {
-            "name": name,
-            "url": url,
-            "avatar": avatar,
-        }
-        data.append(_feed_item(item, author=author_info))
-    cursor = str(items[-1]["_id"]) if items else None
-    resp = {
-        "version": "https://jsonfeed.org/version/1",
-        "title": f"{USERNAME}'s stream",
-        "home_page_url": ID,
-        "feed_url": f"{ID}{path}",
-        "items": data,
-    }
-    if cursor and len(data) == 50:
-        resp["next_url"] = f"{ID}{path}?cursor={cursor}"
-
-    return resp
-
-
-def embed_collection(total_items, first_page_id):
-    """Helper creating a root OrderedCollection with a link to the first page."""
-    return {
-        "type": ap.ActivityType.ORDERED_COLLECTION.value,
-        "totalItems": total_items,
-        "first": f"{first_page_id}?page=first",
-        "id": first_page_id,
-    }
-
-
-def simple_build_ordered_collection(col_name, data):
-    return {
-        "@context": ap.COLLECTION_CTX,
-        "id": f"{BASE_URL}/{col_name}",
-        "totalItems": len(data),
-        "type": ap.ActivityType.ORDERED_COLLECTION.value,
-        "orderedItems": data,
-    }
-
-
-def build_ordered_collection(col, q=None, cursor=None, map_func=None, limit=50, col_name=None, first_page=False):
-    """Helper for building an OrderedCollection from a MongoDB query (with pagination support)."""
-    col_name = col_name or col.name
-    collection_id = f"{BASE_URL}/{col_name}"
-    base_q = q.copy() if q is not None else {}
-    total_items = col.count_documents(base_q)
-
-    query_with_cursor = base_q.copy()
-    if cursor:
-        try:
-            query_with_cursor["_id"] = {"$lt": ObjectId(cursor)}
-        except Exception:
-            abort(400)
-    data = list(col.find(query_with_cursor, limit=limit).sort("_id", -1))
-
-    if not data:
-        # Returns an empty page if there's a cursor
-        if cursor:
-            return {
-                "@context": ap.COLLECTION_CTX,
-                "type": ap.ActivityType.ORDERED_COLLECTION_PAGE.value,
-                "id": f"{collection_id}?cursor={cursor}",
-                "partOf": collection_id,
-                "totalItems": total_items,
-                "orderedItems": [],
-            }
-        return {
-            "@context": ap.COLLECTION_CTX,
-            "id": collection_id,
-            "totalItems": total_items,
-            "type": ap.ActivityType.ORDERED_COLLECTION.value,
-            "orderedItems": [],
-        }
-
-    start_cursor = str(data[0]["_id"])
-    next_page_cursor = str(data[-1]["_id"])
-
-    data = [_remove_id(doc) for doc in data]
-    if map_func:
-        data = [map_func(doc) for doc in data]
-
-    page = {
-        "id": f"{collection_id}?cursor={start_cursor}",
-        "orderedItems": data,
-        "partOf": collection_id,
-        "totalItems": total_items,
-        "type": ap.ActivityType.ORDERED_COLLECTION_PAGE.value,
-    }
-    if len(data) == limit:
-        page["next"] = f"{collection_id}?cursor={next_page_cursor}"
-
-    # No cursor, this is the first page and we return an OrderedCollection
-    if not cursor:
-        if first_page:
-            return page
-        return {
-            "@context": ap.COLLECTION_CTX,
-            "id": collection_id,
-            "totalItems": total_items,
-            "type": ap.ActivityType.ORDERED_COLLECTION.value,
-            "first": page,
-        }
-
-    # If there's a cursor, then we return an OrderedCollectionPage
-    # XXX(tsileo): implements prev with prev=<first item cursor>?
-    return {"@context": ap.COLLECTION_CTX, **page}
