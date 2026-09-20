@@ -2,6 +2,7 @@ import hashlib
 import re
 import urllib
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from urllib.parse import urlparse
 
 import bleach
@@ -214,7 +215,7 @@ def _cached_actor_emojis(actor_id) -> dict[str, str]:
 
 
 @blueprint.app_template_filter()
-def emojize(html, obj=None, actor=None):
+def emojize(html: str | None, obj: Any = None, actor: Any = None) -> str:
     if not html:
         return ""
 

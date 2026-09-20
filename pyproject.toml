@@ -63,6 +63,11 @@ micronote = [
 testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = ["--ignore=tests/federation_test.py", "--ignore=tests/integration_test.py"]
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning:mf2py.*:",
+    "ignore::DeprecationWarning:opengraph.*:",
+]
 
 [tool.ruff]
 line-length = 120
