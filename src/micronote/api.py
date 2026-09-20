@@ -12,7 +12,7 @@ from flask_wtf.csrf import CSRFProtect
 from itsdangerous import BadSignature
 from werkzeug.utils import secure_filename
 
-from micronote import activitypub, tasks
+from micronote import activitypub, cache, tasks
 from micronote.boxes import Box
 from micronote.config import (
     ADMIN_API_KEY,
@@ -163,7 +163,7 @@ def api_pin():
         {"activity.object.id": note.id, "box": Box.OUTBOX.value},
         {"$set": {"meta.pinned": True}},
     )
-    DB.cache2.delete_many({})
+    cache.clear()
 
     return _user_api_response(pinned=True)
 
@@ -177,7 +177,7 @@ def api_unpin():
         {"activity.object.id": note.id, "box": Box.OUTBOX.value},
         {"$set": {"meta.pinned": False}},
     )
-    DB.cache2.delete_many({})
+    cache.clear()
 
     return _user_api_response(pinned=False)
 

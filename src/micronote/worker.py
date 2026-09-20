@@ -25,7 +25,7 @@ from active_boxes.errors import (
 from active_boxes.linked_data_sig import generate_signature
 from requests.exceptions import HTTPError
 
-from micronote import activitypub, tasks
+from micronote import activitypub, cache, tasks
 from micronote.config import BASE_URL, DB, ID, KEY, MEDIA_CACHE, USER_AGENT, create_db_connection
 from micronote.instance import MY_PERSON, back
 from micronote.jobs import MAX_RETRIES, STATUS_FAILED, STATUS_PENDING, STATUS_PROCESSING, enqueue_job
@@ -425,7 +425,7 @@ def finish_post_to_inbox(job) -> None:
             elif obj.has_type(ap.ActivityType.FOLLOW):
                 back.undo_new_follower(MY_PERSON, obj)
         try:
-            tasks.invalidate_cache(activity)
+            cache.invalidate_for_activity(activity)
         except Exception:
             log.exception("failed to invalidate cache")
     except (ActivityGoneError, ActivityNotFoundError, NotAnActivityError):
@@ -467,7 +467,7 @@ def finish_post_to_outbox(job) -> None:
         log.info(f"recipients={recipients}")
         activity = ap.clean_activity(activity.to_dict())
 
-        DB.cache2.delete_many({})
+        cache.clear()
 
         payload = activitypub.json_dumps(activity)
         for recp in recipients:

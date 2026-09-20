@@ -3,7 +3,7 @@ import logging
 import mimetypes
 import os
 import traceback
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from active_boxes import activitypub as ap
@@ -11,13 +11,12 @@ from active_boxes.activitypub import ActivityType, _to_list, clean_activity, get
 from active_boxes.errors import ActivityGoneError, Error
 from active_boxes.httpsig import verify_request_sync
 from active_boxes.webfinger import get_actor_url_sync, get_remote_follow_template_sync
-from cachetools import TTLCache
 from flask import Flask, Response, abort, redirect, render_template, request, send_from_directory, session, url_for
 from flask import jsonify as flask_jsonify
 from flask_wtf.csrf import CSRFProtect
 from itsdangerous import BadSignature
 
-from micronote import activitypub, admin, api, config, feeds, filters, indieauth, tasks
+from micronote import activitypub, admin, api, cache, config, feeds, filters, indieauth, stats, tasks
 from micronote.activitypub import embed_collection
 from micronote.boxes import Box
 from micronote.config import (
@@ -83,57 +82,6 @@ else:
 logging.getLogger("active_boxes").setLevel(logging.CRITICAL)
 
 
-_COUNTS_CACHE: TTLCache[str, dict[str, int]] = TTLCache(maxsize=1, ttl=30)
-
-
-def _get_counts() -> dict[str, int]:
-    cached = _COUNTS_CACHE.get("counts")
-    if cached is not None:
-        return cached
-
-    q = {
-        "type": "Create",
-        "activity.object.type": "Note",
-        "activity.object.inReplyTo": None,
-        "meta.deleted": False,
-    }
-    notes_count = DB.activities.count_documents(
-        {"box": Box.OUTBOX.value, "$or": [q, {"type": "Announce", "meta.undo": False}]}
-    )
-    q = {"type": "Create", "activity.object.type": "Note", "meta.deleted": False}
-    with_replies_count = DB.activities.count_documents(
-        {"box": Box.OUTBOX.value, "$or": [q, {"type": "Announce", "meta.undo": False}]}
-    )
-    liked_count = DB.activities.count_documents(
-        {
-            "box": Box.OUTBOX.value,
-            "meta.deleted": False,
-            "meta.undo": False,
-            "type": ActivityType.LIKE.value,
-        }
-    )
-    followers_q = {
-        "box": Box.INBOX.value,
-        "type": ActivityType.FOLLOW.value,
-        "meta.undo": False,
-    }
-    following_q = {
-        "box": Box.OUTBOX.value,
-        "type": ActivityType.FOLLOW.value,
-        "meta.undo": False,
-    }
-
-    counts = {
-        "followers_count": DB.activities.count_documents(followers_q),
-        "following_count": DB.activities.count_documents(following_q),
-        "notes_count": notes_count,
-        "liked_count": liked_count,
-        "with_replies_count": with_replies_count,
-    }
-    _COUNTS_CACHE["counts"] = counts
-    return counts
-
-
 @app.context_processor
 def inject_config():
     return {
@@ -141,7 +89,7 @@ def inject_config():
         "config": config,
         "logged_in": session.get("logged_in", False),
         "me": ME,
-        **_get_counts(),
+        **stats.counts(),
     }
 
 
@@ -348,8 +296,6 @@ def webauthn_register():
     return redirect("/admin")
 
 
-#######
-# Activity pub migrations
 @app.route("/drop_cache", methods=["POST"])
 @login_required
 def drop_cache():
@@ -357,36 +303,8 @@ def drop_cache():
         return flask_jsonify(message="DEBUG_MODE is off"), 403
     csrf.protect()
     DB.actors.drop()
-    DB.cache2.delete_many({})
-    _COUNTS_CACHE.clear()
+    cache.clear()
     return "Done"
-
-
-CACHING = True
-
-
-def _get_cached(type_="html", arg=None):
-    if not CACHING:
-        return None
-    logged_in = session.get("logged_in")
-    if not logged_in:
-        cached = DB.cache2.find_one({"path": request.path, "type": type_, "arg": arg})
-        if cached:
-            app.logger.info("from cache")
-            return cached["response_data"]
-    return None
-
-
-def _cache(resp, type_="html", arg=None):
-    if not CACHING:
-        return
-    logged_in = session.get("logged_in")
-    if not logged_in:
-        DB.cache2.update_one(
-            {"path": request.path, "type": type_, "arg": arg},
-            {"$set": {"response_data": resp, "date": datetime.now(UTC)}},
-            upsert=True,
-        )
 
 
 @app.route("/")
@@ -394,9 +312,11 @@ def index():
     if is_api_request():
         return jsonify(**ME)
     cache_arg = f"{request.args.get('older_than', '')}:{request.args.get('newer_than', '')}"
-    cached = _get_cached("html", cache_arg)
-    if cached:
-        return cached
+    logged_in = session.get("logged_in")
+    if not logged_in:
+        cached = cache.get_page(request.path, "html", cache_arg)
+        if cached:
+            return cached
 
     q = {
         "box": Box.OUTBOX.value,
@@ -428,7 +348,8 @@ def index():
         newer_than=newer_than,
         pinned=pinned,
     )
-    _cache(resp, "html", cache_arg)
+    if not logged_in:
+        cache.set_page(request.path, resp, "html", cache_arg)
     return resp
 
 
@@ -498,10 +419,9 @@ def note_by_id(note_id):
 
 @app.route("/nodeinfo")
 def nodeinfo():
-    response = _get_cached("api")
-    cached = True
+    logged_in = session.get("logged_in")
+    response = None if logged_in else cache.get_page(request.path, "api")
     if not response:
-        cached = False
         q = {
             "box": Box.OUTBOX.value,
             "meta.deleted": False,  # TODO(tsileo): retrieve deleted and expose tombstone
@@ -525,9 +445,9 @@ def nodeinfo():
                 },
             }
         )
+        if not logged_in:
+            cache.set_page(request.path, response, "api")
 
-    if not cached:
-        _cache(response, "api")
     return Response(
         headers={"Content-Type": "application/json; profile=http://nodeinfo.diaspora.software/ns/schema/2.0#"},
         response=response,

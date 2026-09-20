@@ -91,7 +91,7 @@ def test_finish_post_to_inbox_announce_with_401_actor():
     with (
         patch("micronote.worker.ap.fetch_remote_activity_sync", return_value=mock_announce),
         patch("micronote.worker.back", mock_backend),
-        patch("micronote.worker.tasks.invalidate_cache"),
+        patch("micronote.cache.invalidate_for_activity"),
     ):
         # Must execute cleanly without exception
         finish_post_to_inbox({"iri": mock_announce.id})

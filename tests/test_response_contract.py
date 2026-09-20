@@ -23,8 +23,8 @@ def _logged_in_client():
 
 def test_dual_routes_serve_html_and_activitypub():
     with (
-        patch("micronote.app._get_cached", return_value=None),
-        patch("micronote.app._cache"),
+        patch("micronote.cache.get_page", return_value=None),
+        patch("micronote.cache.set_page"),
         patch("micronote.app.paginated_query", return_value=([], None, None)),
     ):
         with app.test_client() as client:

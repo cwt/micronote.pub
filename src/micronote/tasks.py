@@ -2,8 +2,8 @@ import logging
 
 from active_boxes import activitypub as ap
 
+from micronote import cache
 from micronote.boxes import Box
-from micronote.config import BASE_URL, DB, ID
 from micronote.instance import MY_PERSON, back
 from micronote.jobs import enqueue_job
 
@@ -33,23 +33,6 @@ def post_to_inbox(activity: ap.BaseActivity) -> None:
     enqueue_job("finish_post_to_inbox", iri=activity.id)
 
 
-def invalidate_cache(activity) -> None:
-    if activity.has_type([ap.ActivityType.UNDO, ap.ActivityType.DELETE, ap.ActivityType.UPDATE]):
-        DB.cache2.delete_many({})
-    elif activity.has_type(ap.ActivityType.FOLLOW):
-        # A new follower changes the followers badge rendered into the
-        # cached homepage (header.html), so the page cache must go.
-        # (Duplicates never reach here: post_to_inbox drops them.)
-        DB.cache2.delete_many({})
-    elif activity.has_type([ap.ActivityType.LIKE, ap.ActivityType.ANNOUNCE]):
-        if activity.get_object_sync().id.startswith(BASE_URL):
-            DB.cache2.delete_many({})
-    elif activity.has_type(ap.ActivityType.CREATE):
-        note = activity.get_object_sync()
-        if not note.inReplyTo or note.inReplyTo.startswith(ID):
-            DB.cache2.delete_many({})
-
-
 def post_to_outbox(activity: ap.BaseActivity) -> str:
     if activity.has_type(ap.CREATE_TYPES):
         activity = activity.build_create()
@@ -59,7 +42,7 @@ def post_to_outbox(activity: ap.BaseActivity) -> str:
     activity.set_id(back.activity_url(obj_id), obj_id)
 
     back.save(Box.OUTBOX, activity)
-    DB.cache2.delete_many({})
+    cache.clear()
     enqueue_job("cache_actor", iri=activity.id)
     enqueue_job("finish_post_to_outbox", iri=activity.id)
     return activity.id
