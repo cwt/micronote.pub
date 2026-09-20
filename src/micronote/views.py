@@ -6,31 +6,22 @@ from typing import Any
 from active_boxes.activitypub import ActivityType
 from flask import Blueprint, abort, redirect, render_template, request, session, url_for
 
-from micronote import ap_serialize, cache, config
+from micronote import ap_serialize, config
 from micronote.boxes import Box
 from micronote.config import DB, ME
 from micronote.instance import back
 from micronote.utils.login import login_required
 from micronote.utils.query import paginated_query
 from micronote.utils.thread import build_thread
-from micronote.web import activity_json, is_api_request
+from micronote.web import activity_json, negotiate, page_cache
 
 blueprint = Blueprint("views", __name__, template_folder="templates")
 
 log = logging.getLogger(__name__)
 
 
-@blueprint.route("/")
-def index():
-    if is_api_request():
-        return activity_json(**ME)
-    cache_arg = f"{request.args.get('older_than', '')}:{request.args.get('newer_than', '')}"
-    logged_in = session.get("logged_in")
-    if not logged_in:
-        cached = cache.get_page(request.path, "html", cache_arg)
-        if cached:
-            return cached
-
+@page_cache(type_="html")
+def index_html():
     q = {
         "box": Box.OUTBOX.value,
         "type": {"$in": [ActivityType.CREATE.value, ActivityType.ANNOUNCE.value]},
@@ -54,16 +45,20 @@ def index():
 
     outbox_data, older_than, newer_than = paginated_query(DB.activities, q, limit=25 - len(pinned))
 
-    resp = render_template(
+    return render_template(
         "index.html",
         outbox_data=outbox_data,
         older_than=older_than,
         newer_than=newer_than,
         pinned=pinned,
     )
-    if not logged_in:
-        cache.set_page(request.path, resp, "html", cache_arg)
-    return resp
+
+
+def index_ap():
+    return activity_json(**ME)
+
+
+blueprint.add_url_rule("/", endpoint="index", view_func=negotiate(html=index_html, activitypub=index_ap))
 
 
 @blueprint.route("/with_replies")
@@ -109,11 +104,7 @@ def _collect_actors(note_data: dict[str, Any], activity_type: ActivityType) -> l
     return actors
 
 
-@blueprint.route("/note/<note_id>")
-def note_by_id(note_id):
-    if is_api_request():
-        return redirect(url_for("ap.outbox_activity", item_id=note_id))
-
+def note_by_id_html(note_id):
     data = DB.activities.find_one({"box": Box.OUTBOX.value, "remote_id": back.activity_url(note_id)})
     if not data:
         abort(404)
@@ -130,21 +121,19 @@ def note_by_id(note_id):
     return render_template("note.html", likes=likes, shares=shares, thread=thread, note=data)
 
 
-@blueprint.route("/followers")
-def followers():
+def note_by_id_ap(note_id):
+    return redirect(url_for("ap.outbox_activity", item_id=note_id))
+
+
+blueprint.add_url_rule(
+    "/note/<note_id>",
+    endpoint="note_by_id",
+    view_func=negotiate(html=note_by_id_html, activitypub=note_by_id_ap),
+)
+
+
+def followers_html():
     q = {"box": Box.INBOX.value, "type": ActivityType.FOLLOW.value, "meta.undo": False}
-
-    if is_api_request():
-        return activity_json(
-            **ap_serialize.build_ordered_collection(
-                DB.activities,
-                q=q,
-                cursor=request.args.get("cursor"),
-                map_func=ap_serialize.activity_actor_from_doc,
-                col_name="followers",
-            )
-        )
-
     raw_followers, older_than, newer_than = paginated_query(DB.activities, q)
     followers = [doc["meta"]["actor"] for doc in raw_followers if "actor" in doc.get("meta", {})]
     return render_template(
@@ -155,24 +144,31 @@ def followers():
     )
 
 
-@blueprint.route("/following")
-def following():
-    q = {"box": Box.OUTBOX.value, "type": ActivityType.FOLLOW.value, "meta.undo": False}
-
-    if is_api_request():
-        return activity_json(
-            **ap_serialize.build_ordered_collection(
-                DB.activities,
-                q=q,
-                cursor=request.args.get("cursor"),
-                map_func=ap_serialize.activity_object_from_doc,
-                col_name="following",
-            )
+def followers_ap():
+    q = {"box": Box.INBOX.value, "type": ActivityType.FOLLOW.value, "meta.undo": False}
+    return activity_json(
+        **ap_serialize.build_ordered_collection(
+            DB.activities,
+            q=q,
+            cursor=request.args.get("cursor"),
+            map_func=ap_serialize.activity_actor_from_doc,
+            col_name="followers",
         )
+    )
 
+
+blueprint.add_url_rule(
+    "/followers",
+    endpoint="followers",
+    view_func=negotiate(html=followers_html, activitypub=followers_ap),
+)
+
+
+def following_html():
     if config.HIDE_FOLLOWING and not session.get("logged_in", False):
         abort(404)
 
+    q = {"box": Box.OUTBOX.value, "type": ActivityType.FOLLOW.value, "meta.undo": False}
     following, older_than, newer_than = paginated_query(DB.activities, q)
     following = [
         (doc["remote_id"], doc["meta"]["object"])
@@ -187,8 +183,28 @@ def following():
     )
 
 
-@blueprint.route("/tags/<tag>")
-def tags(tag):
+def following_ap():
+    q = {"box": Box.OUTBOX.value, "type": ActivityType.FOLLOW.value, "meta.undo": False}
+    return activity_json(
+        **ap_serialize.build_ordered_collection(
+            DB.activities,
+            q=q,
+            cursor=request.args.get("cursor"),
+            map_func=ap_serialize.activity_object_from_doc,
+            col_name="following",
+        )
+    )
+
+
+blueprint.add_url_rule(
+    "/following",
+    endpoint="following",
+    view_func=negotiate(html=following_html, activitypub=following_ap),
+)
+
+
+def _require_tag(tag):
+    """The tag must exist for both representations; 404 otherwise."""
     if not DB.activities.count_documents(
         {
             "box": Box.OUTBOX.value,
@@ -197,20 +213,27 @@ def tags(tag):
         }
     ):
         abort(404)
-    if not is_api_request():
-        return render_template(
-            "tags.html",
-            tag=tag,
-            outbox_data=DB.activities.find(
-                {
-                    "box": Box.OUTBOX.value,
-                    "type": ActivityType.CREATE.value,
-                    "meta.deleted": False,
-                    "activity.object.tag.type": "Hashtag",
-                    "activity.object.tag.name": f"#{tag}",
-                }
-            ),
-        )
+
+
+def tags_html(tag):
+    _require_tag(tag)
+    return render_template(
+        "tags.html",
+        tag=tag,
+        outbox_data=DB.activities.find(
+            {
+                "box": Box.OUTBOX.value,
+                "type": ActivityType.CREATE.value,
+                "meta.deleted": False,
+                "activity.object.tag.type": "Hashtag",
+                "activity.object.tag.name": f"#{tag}",
+            }
+        ),
+    )
+
+
+def tags_ap(tag):
+    _require_tag(tag)
     q = {
         "box": Box.OUTBOX.value,
         "meta.deleted": False,
@@ -230,20 +253,27 @@ def tags(tag):
     )
 
 
-@blueprint.route("/liked")
-def liked():
-    if not is_api_request():
-        q = {
-            "box": Box.OUTBOX.value,
-            "type": ActivityType.LIKE.value,
-            "meta.deleted": False,
-            "meta.undo": False,
-        }
+blueprint.add_url_rule(
+    "/tags/<tag>",
+    endpoint="tags",
+    view_func=negotiate(html=tags_html, activitypub=tags_ap),
+)
 
-        liked, older_than, newer_than = paginated_query(DB.activities, q)
 
-        return render_template("liked.html", liked=liked, older_than=older_than, newer_than=newer_than)
+def liked_html():
+    q = {
+        "box": Box.OUTBOX.value,
+        "type": ActivityType.LIKE.value,
+        "meta.deleted": False,
+        "meta.undo": False,
+    }
 
+    liked, older_than, newer_than = paginated_query(DB.activities, q)
+
+    return render_template("liked.html", liked=liked, older_than=older_than, newer_than=newer_than)
+
+
+def liked_ap():
     q = {"meta.deleted": False, "meta.undo": False, "type": ActivityType.LIKE.value}
     return activity_json(
         **ap_serialize.build_ordered_collection(
@@ -254,3 +284,10 @@ def liked():
             col_name="liked",
         )
     )
+
+
+blueprint.add_url_rule(
+    "/liked",
+    endpoint="liked",
+    view_func=negotiate(html=liked_html, activitypub=liked_ap),
+)

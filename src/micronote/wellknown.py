@@ -4,10 +4,10 @@ import json
 import mimetypes
 
 from active_boxes.activitypub import ActivityType
-from flask import Blueprint, Response, abort, current_app, request, session
+from flask import Blueprint, Response, abort, current_app, request
 from flask import jsonify as flask_jsonify
 
-from micronote import activitypub, cache
+from micronote import activitypub
 from micronote.boxes import Box
 from micronote.config import (
     BASE_URL,
@@ -23,8 +23,11 @@ from micronote.config import (
     USERNAME,
     VERSION,
 )
+from micronote.web import page_cache
 
 blueprint = Blueprint("wellknown", __name__, template_folder="templates")
+
+NODEINFO_CONTENT_TYPE = "application/json; profile=http://nodeinfo.diaspora.software/ns/schema/2.0#"
 
 
 ROBOTS_TXT = """User-agent: *
@@ -41,38 +44,34 @@ def robots_txt():
 
 
 @blueprint.route("/nodeinfo")
+@page_cache(type_="api", content_type=NODEINFO_CONTENT_TYPE)
 def nodeinfo():
-    logged_in = session.get("logged_in")
-    response = None if logged_in else cache.get_page(request.path, "api")
-    if not response:
-        q = {
-            "box": Box.OUTBOX.value,
-            "meta.deleted": False,  # TODO(tsileo): retrieve deleted and expose tombstone
-            "type": {"$in": [ActivityType.CREATE.value, ActivityType.ANNOUNCE.value]},
-        }
+    q = {
+        "box": Box.OUTBOX.value,
+        "meta.deleted": False,  # TODO(tsileo): retrieve deleted and expose tombstone
+        "type": {"$in": [ActivityType.CREATE.value, ActivityType.ANNOUNCE.value]},
+    }
 
-        response = json.dumps(
-            {
-                "version": "2.0",
-                "software": {
-                    "name": "micronote.pub",
-                    "version": f"micronote.pub {VERSION}",
-                },
-                "protocols": ["activitypub"],
-                "services": {"inbound": [], "outbound": []},
-                "openRegistrations": False,
-                "usage": {"users": {"total": 1}, "localPosts": DB.activities.count_documents(q)},
-                "metadata": {
-                    "sourceCode": "https://github.com/cwt/micronote.pub",
-                    "nodeName": f"@{USERNAME}@{DOMAIN}",
-                },
-            }
-        )
-        if not logged_in:
-            cache.set_page(request.path, response, "api")
+    response = json.dumps(
+        {
+            "version": "2.0",
+            "software": {
+                "name": "micronote.pub",
+                "version": f"micronote.pub {VERSION}",
+            },
+            "protocols": ["activitypub"],
+            "services": {"inbound": [], "outbound": []},
+            "openRegistrations": False,
+            "usage": {"users": {"total": 1}, "localPosts": DB.activities.count_documents(q)},
+            "metadata": {
+                "sourceCode": "https://github.com/cwt/micronote.pub",
+                "nodeName": f"@{USERNAME}@{DOMAIN}",
+            },
+        }
+    )
 
     return Response(
-        headers={"Content-Type": "application/json; profile=http://nodeinfo.diaspora.software/ns/schema/2.0#"},
+        headers={"Content-Type": NODEINFO_CONTENT_TYPE},
         response=response,
     )
 

@@ -14,7 +14,7 @@ from micronote import ap_serialize, api, tasks
 from micronote.boxes import Box
 from micronote.config import DB
 from micronote.instance import MY_PERSON, back
-from micronote.web import activity_json, is_api_request
+from micronote.web import activity_json, activitypub_only
 
 blueprint = Blueprint("ap", __name__, template_folder="templates")
 
@@ -22,10 +22,9 @@ log = logging.getLogger(__name__)
 
 
 @blueprint.route("/outbox", methods=["GET", "POST"])
+@activitypub_only
 def outbox():
     if request.method == "GET":
-        if not is_api_request():
-            abort(404)
         # TODO(tsileo): returns the whole outbox if authenticated
         q = {
             "box": Box.OUTBOX.value,
@@ -88,9 +87,8 @@ def outbox_activity(item_id):
 
 
 @blueprint.route("/outbox/<item_id>/replies")
+@activitypub_only
 def outbox_activity_replies(item_id):
-    if not is_api_request():
-        abort(404)
     data = DB.activities.find_one(
         {
             "box": Box.OUTBOX.value,
@@ -123,9 +121,8 @@ def outbox_activity_replies(item_id):
 
 
 @blueprint.route("/outbox/<item_id>/likes")
+@activitypub_only
 def outbox_activity_likes(item_id):
-    if not is_api_request():
-        abort(404)
     data = DB.activities.find_one(
         {
             "box": Box.OUTBOX.value,
@@ -161,9 +158,8 @@ def outbox_activity_likes(item_id):
 
 
 @blueprint.route("/outbox/<item_id>/shares")
+@activitypub_only
 def outbox_activity_shares(item_id):
-    if not is_api_request():
-        abort(404)
     data = DB.activities.find_one(
         {
             "box": Box.OUTBOX.value,
@@ -199,10 +195,9 @@ def outbox_activity_shares(item_id):
 
 
 @blueprint.route("/inbox", methods=["GET", "POST"])
+@activitypub_only
 def inbox():
     if request.method == "GET":
-        if not is_api_request():
-            abort(404)
         try:
             api.require_api_auth()
         except BadSignature:
@@ -270,9 +265,8 @@ def inbox():
 
 
 @blueprint.route("/featured")
+@activitypub_only
 def featured():
-    if not is_api_request():
-        abort(404)
     q = {
         "box": Box.OUTBOX.value,
         "type": ActivityType.CREATE.value,
