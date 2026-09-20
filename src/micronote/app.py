@@ -11,6 +11,7 @@ from active_boxes.activitypub import ActivityType, _to_list, clean_activity, get
 from active_boxes.errors import ActivityGoneError, Error
 from active_boxes.httpsig import verify_request_sync
 from active_boxes.webfinger import get_actor_url_sync, get_remote_follow_template_sync
+from cachetools import TTLCache
 from flask import Flask, Response, abort, redirect, render_template, request, send_from_directory, session, url_for
 from flask import jsonify as flask_jsonify
 from flask_wtf.csrf import CSRFProtect
@@ -84,8 +85,14 @@ else:
 logging.getLogger("active_boxes").setLevel(logging.CRITICAL)
 
 
-@app.context_processor
-def inject_config():
+_COUNTS_CACHE: TTLCache[str, dict[str, int]] = TTLCache(maxsize=1, ttl=30)
+
+
+def _get_counts() -> dict[str, int]:
+    cached = _COUNTS_CACHE.get("counts")
+    if cached is not None:
+        return cached
+
     q = {
         "type": "Create",
         "activity.object.type": "Note",
@@ -118,16 +125,25 @@ def inject_config():
         "meta.undo": False,
     }
 
-    return {
-        "micronote_version": VERSION,
-        "config": config,
-        "logged_in": session.get("logged_in", False),
+    counts = {
         "followers_count": DB.activities.count_documents(followers_q),
         "following_count": DB.activities.count_documents(following_q),
         "notes_count": notes_count,
         "liked_count": liked_count,
         "with_replies_count": with_replies_count,
+    }
+    _COUNTS_CACHE["counts"] = counts
+    return counts
+
+
+@app.context_processor
+def inject_config():
+    return {
+        "micronote_version": VERSION,
+        "config": config,
+        "logged_in": session.get("logged_in", False),
         "me": ME,
+        **_get_counts(),
     }
 
 
