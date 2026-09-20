@@ -746,7 +746,7 @@ lower value, higher risk, or blocked by the phases above:
 
 | Phase | Status | Topic / Bookmark | Landed |
 | --- | --- | --- | --- |
-| 0 — Baseline & structural guardrails | Not started | `soc-phase-0-baseline` | — |
+| 0 — Baseline & structural guardrails | Done | `soc-phase-0-baseline` | 540–541 |
 | 1 — Module boundaries & import cycles | Not started | `soc-phase-1-boundaries` | — |
 | 2 — Cache ownership & invalidation | Not started | `soc-phase-2-cache` | — |
 | 3 — Decompose `app.py` into blueprints | Not started | `soc-phase-3-blueprints` | — |
@@ -758,3 +758,9 @@ lower value, higher risk, or blocked by the phases above:
 
 Update this table when a phase starts or lands, and record the topic name
 actually used so a later phase can find the history.
+
+**Phase 0 baseline (2026-09-20):** `pytest` 96 passed; `make lint` green;
+`make lint-web` green after the `app.css` fix. Guard tests added:
+`tests/test_url_map.py` (54 routes), `tests/test_imports.py`,
+`tests/test_response_contract.py`, plus cache contract cases in
+`tests/test_pin_cache_invalidation.py` (suite now 105 passed).
