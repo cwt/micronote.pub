@@ -55,7 +55,7 @@ def test_admin_stream_announce_renders_without_network_call():
         with (
             patch("micronote.repository.paginated_query", return_value=([mock_item], None, None)),
             patch("micronote.admin._following_map", return_value={}),
-            patch("micronote.filters.get_backend", return_value=mock_backend),
+            patch("micronote.actor_cache.get_backend", return_value=mock_backend),
         ):
             resp = client.get("/admin/stream")
             assert resp.status_code == 200

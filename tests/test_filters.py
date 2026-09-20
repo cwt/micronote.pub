@@ -57,8 +57,8 @@ def test_get_actor_from_db_cache():
         "data": {"name": "Alice Cached"},
     }
     with (
-        patch("micronote.filters.DB", mock_db),
-        patch("micronote.filters.get_backend") as mock_backend,
+        patch("micronote.actor_cache.DB", mock_db),
+        patch("micronote.actor_cache.get_backend") as mock_backend,
     ):
         res = get_actor("https://remote.example/users/alice")
         assert res == {"name": "Alice Cached"}
@@ -75,8 +75,8 @@ def test_get_actor_network_fallback_and_cache():
     }
     with (
         app.app_context(),
-        patch("micronote.filters.DB", mock_db),
-        patch("micronote.filters.get_backend", return_value=mock_backend),
+        patch("micronote.actor_cache.DB", mock_db),
+        patch("micronote.actor_cache.get_backend", return_value=mock_backend),
     ):
         res = get_actor("https://remote.example/users/bob")
         assert res == {"id": "https://remote.example/users/bob", "name": "Bob"}
@@ -96,13 +96,13 @@ def test_get_actor_network_fallback_and_cache():
 def test_get_custom_emoji_url_cached():
     mock_file = MagicMock()
     mock_file._id = "mock_emoji_id"
-    with patch("micronote.filters.MEDIA_CACHE.get_file", return_value=mock_file):
+    with patch("micronote.media_urls.MEDIA_CACHE.get_file", return_value=mock_file):
         url = get_custom_emoji_url("https://remote.example/emoji.png")
         assert url == "/media/mock_emoji_id"
 
 
 def test_get_custom_emoji_url_uncached():
-    with app.app_context(), patch("micronote.filters.MEDIA_CACHE.get_file", return_value=None):
+    with app.app_context(), patch("micronote.media_urls.MEDIA_CACHE.get_file", return_value=None):
         url = get_custom_emoji_url("https://remote.example/uncached_emoji.png")
         assert url == "https://remote.example/uncached_emoji.png"
 
@@ -137,7 +137,7 @@ def test_emojize_with_actor_emojis():
 
 
 def test_get_file_url_enqueues_background_caching_on_miss():
-    from micronote.filters import _PENDING_CACHE_JOBS, _get_file_url
+    from micronote.media_urls import _PENDING_CACHE_JOBS, get_file_url
     from micronote.utils.media import Kind
 
     test_url = "https://remote.example/attachment-unique-123.png"
@@ -145,10 +145,10 @@ def test_get_file_url_enqueues_background_caching_on_miss():
 
     with (
         app.app_context(),
-        patch("micronote.filters.MEDIA_CACHE.get_file", return_value=None),
-        patch("micronote.jobs.enqueue_job") as mock_enqueue,
+        patch("micronote.media_urls.MEDIA_CACHE.get_file", return_value=None),
+        patch("micronote.media_urls.enqueue_job") as mock_enqueue,
     ):
-        result = _get_file_url(test_url, 720, Kind.ATTACHMENT)
+        result = get_file_url(test_url, 720, Kind.ATTACHMENT)
         assert result == test_url
         mock_enqueue.assert_called_once_with(
             "cache_media_item",
@@ -158,7 +158,7 @@ def test_get_file_url_enqueues_background_caching_on_miss():
 
 
 def test_enqueue_media_cache_deduplication():
-    from micronote.filters import _PENDING_CACHE_JOBS, _enqueue_media_cache
+    from micronote.media_urls import _PENDING_CACHE_JOBS, enqueue_media_cache
     from micronote.utils.media import Kind
 
     test_url = "https://remote.example/avatar-dedup.png"
@@ -166,29 +166,29 @@ def test_enqueue_media_cache_deduplication():
 
     with (
         app.app_context(),
-        patch("micronote.jobs.enqueue_job") as mock_enqueue,
+        patch("micronote.media_urls.enqueue_job") as mock_enqueue,
     ):
-        _enqueue_media_cache(test_url, Kind.ACTOR_ICON)
-        _enqueue_media_cache(test_url, Kind.ACTOR_ICON)
+        enqueue_media_cache(test_url, Kind.ACTOR_ICON)
+        enqueue_media_cache(test_url, Kind.ACTOR_ICON)
         # Should only have been enqueued once due to TTLCache deduplication
         assert mock_enqueue.call_count == 1
 
 
 def test_enqueue_media_cache_skips_invalid_urls():
-    from micronote.filters import _enqueue_media_cache
+    from micronote.media_urls import enqueue_media_cache
     from micronote.utils.media import Kind
 
-    with patch("micronote.jobs.enqueue_job") as mock_enqueue:
-        _enqueue_media_cache("", Kind.ATTACHMENT)
-        _enqueue_media_cache(None, Kind.ATTACHMENT)  # type: ignore[arg-type]
-        _enqueue_media_cache("/static/img.png", Kind.ATTACHMENT)
+    with patch("micronote.media_urls.enqueue_job") as mock_enqueue:
+        enqueue_media_cache("", Kind.ATTACHMENT)
+        enqueue_media_cache(None, Kind.ATTACHMENT)  # type: ignore[arg-type]
+        enqueue_media_cache("/static/img.png", Kind.ATTACHMENT)
         mock_enqueue.assert_not_called()
 
 
 def test_gridfs_cache_is_bounded_ttl_cache():
     from cachetools import TTLCache
 
-    from micronote.filters import _GRIDFS_CACHE
+    from micronote.media_urls import _GRIDFS_CACHE
 
     assert isinstance(_GRIDFS_CACHE, TTLCache)
     assert _GRIDFS_CACHE.maxsize == 4096
@@ -196,7 +196,7 @@ def test_gridfs_cache_is_bounded_ttl_cache():
 
 
 def test_enqueue_media_cache_db_dedup_is_kind_aware():
-    from micronote.filters import _PENDING_CACHE_JOBS, _enqueue_media_cache
+    from micronote.media_urls import _PENDING_CACHE_JOBS, enqueue_media_cache
     from micronote.utils.media import Kind
 
     test_url = "https://remote.example/multi-purpose-asset.png"
@@ -214,15 +214,15 @@ def test_enqueue_media_cache_db_dedup_is_kind_aware():
 
     with (
         app.app_context(),
-        patch("micronote.filters.DB", mock_db),
-        patch("micronote.jobs.enqueue_job") as mock_enqueue,
+        patch("micronote.media_urls.DB", mock_db),
+        patch("micronote.media_urls.enqueue_job") as mock_enqueue,
     ):
         # Kind.ACTOR_ICON has existing pending job -> should skip
-        _enqueue_media_cache(test_url, Kind.ACTOR_ICON)
+        enqueue_media_cache(test_url, Kind.ACTOR_ICON)
         mock_enqueue.assert_not_called()
 
         # Kind.ATTACHMENT has no pending job for this kind -> should enqueue
-        _enqueue_media_cache(test_url, Kind.ATTACHMENT)
+        enqueue_media_cache(test_url, Kind.ATTACHMENT)
         mock_enqueue.assert_called_once_with(
             "cache_media_item",
             iri=test_url,

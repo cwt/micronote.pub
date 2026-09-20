@@ -9,24 +9,19 @@ import bleach
 import flask
 import timeago
 from active_boxes import activitypub as ap
-from active_boxes.activitypub import _to_list, get_backend
-from active_boxes.errors import ActivityGoneError, ActivityNotFoundError
+from active_boxes.activitypub import _to_list
 from bleach.sanitizer import ALLOWED_ATTRIBUTES as BLEACH_DEFAULT_ATTRIBUTES
-from cachetools import TTLCache
 from dateutil import parser
 from flask import current_app
 from html2text import html2text
 from neosqlite.objectid import ObjectId
 
-from micronote.config import CDN_URL, DB, ID, MEDIA_CACHE, TIMEZONE
+from micronote import actor_cache, media_urls
+from micronote.config import DB, ID, TIMEZONE
 from micronote.utils.emoji import extract_custom_emojis, render_custom_emojis, render_custom_emojis_in_html
 from micronote.utils.highlight import highlight_code_blocks
-from micronote.utils.media import Kind
 
 blueprint = flask.Blueprint("filters", __name__, template_folder="templates")
-
-_GRIDFS_CACHE: TTLCache[tuple[Kind, str, int | None], str] = TTLCache(maxsize=4096, ttl=3600)
-_PENDING_CACHE_JOBS: TTLCache[tuple[Kind, str], bool] = TTLCache(maxsize=4096, ttl=300)
 
 # HTML/templates helper
 ALLOWED_TAGS = [
@@ -75,64 +70,6 @@ def _clean_html(html):
         return ""
 
 
-def _public_media_url(path: str) -> str:
-    return f"{CDN_URL}{path}" if path.startswith("/") else path
-
-
-def _enqueue_media_cache(url: str, kind: Kind) -> None:
-    if not url or not isinstance(url, str) or not (url.startswith("http://") or url.startswith("https://")):
-        return
-
-    cache_key = (kind, url)
-    if cache_key in _PENDING_CACHE_JOBS:
-        return
-
-    _PENDING_CACHE_JOBS[cache_key] = True
-
-    try:
-        existing = DB.jobs.find_one(
-            {
-                "type": "cache_media_item",
-                "iri": url,
-                "payload.kind": kind.value,
-                "status": {"$in": ["pending", "processing"]},
-            }
-        )
-        if existing:
-            return
-
-        from micronote.jobs import enqueue_job
-
-        enqueue_job("cache_media_item", iri=url, payload={"kind": kind.value})
-    except Exception as exc:
-        try:
-            current_app.logger.warning(f"failed to enqueue media cache for {url}: {exc}")
-        except Exception:
-            pass
-
-
-def _get_file_url(url, size, kind):
-    if not url:
-        return ""
-    k = (kind, url, size)
-    cached = _GRIDFS_CACHE.get(k)
-    if cached:
-        return _public_media_url(cached)
-
-    doc = MEDIA_CACHE.get_file(url, size, kind)
-    if doc:
-        u = f"/media/{doc._id}"
-        _GRIDFS_CACHE[k] = u
-        return _public_media_url(u)
-
-    _enqueue_media_cache(url, kind)
-    try:
-        current_app.logger.info(f"cache not available for {url}/{size}/{kind}; enqueued background caching")
-    except Exception:
-        pass
-    return url
-
-
 @blueprint.app_template_filter()
 def remove_mongo_id(dat):
     if isinstance(dat, list):
@@ -155,28 +92,22 @@ def get_video_link(data):
 
 @blueprint.app_template_filter()
 def get_actor_icon_url(url, size):
-    return _get_file_url(url, size, Kind.ACTOR_ICON)
+    return media_urls.actor_icon_url(url, size)
 
 
 @blueprint.app_template_filter()
 def get_attachment_url(url, size):
-    return _get_file_url(url, size, Kind.ATTACHMENT)
+    return media_urls.attachment_url(url, size)
 
 
 @blueprint.app_template_filter()
 def get_og_image_url(url, size=100):
-    try:
-        return _get_file_url(url, size, Kind.OG_IMAGE)
-    except Exception:
-        return ""
+    return media_urls.og_image_url(url, size)
 
 
 @blueprint.app_template_filter()
 def get_custom_emoji_url(url):
-    try:
-        return _get_file_url(url, None, Kind.CUSTOM_EMOJI)
-    except Exception:
-        return url
+    return media_urls.custom_emoji_url(url)
 
 
 @blueprint.app_template_filter()
@@ -303,45 +234,7 @@ def get_url(u):
 
 @blueprint.app_template_filter()
 def get_actor(url):
-    if not url:
-        return None
-    match url:
-        case [first, *_]:
-            url = first
-        case {"id": _, "type": str(_)}:
-            return url
-        case {"id": _, "preferredUsername": str(_)}:
-            return url
-        case {"id": actor_id}:
-            url = actor_id
-
-    if not isinstance(url, str):
-        return None
-
-    try:
-        doc = DB.actors.find_one({"remote_id": url})
-        if doc and doc.get("data"):
-            return doc["data"]
-    except Exception:
-        pass
-
-    current_app.logger.debug(f"GET_ACTOR {url}")
-    try:
-        data = get_backend().fetch_iri_sync(url)
-        if isinstance(data, dict):
-            try:
-                DB.actors.update_one(
-                    {"remote_id": url},
-                    {"$set": {"remote_id": url, "data": data}},
-                    upsert=True,
-                )
-            except Exception:
-                pass
-        return data
-    except (ActivityNotFoundError, ActivityGoneError):
-        return f"Deleted<{url}>"
-    except Exception as exc:
-        return f"Error<{url}/{exc!r}>"
+    return actor_cache.get_actor(url)
 
 
 @blueprint.app_template_filter()
