@@ -202,7 +202,9 @@ blueprint.add_url_rule(
 
 
 def liked_html():
-    liked, older_than, newer_than = repository.liked_page(request.args.get("older_than"), request.args.get("newer_than"))
+    liked, older_than, newer_than = repository.liked_page(
+        request.args.get("older_than"), request.args.get("newer_than")
+    )
 
     return render_template("liked.html", liked=liked, older_than=older_than, newer_than=newer_than)
 

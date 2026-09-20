@@ -59,8 +59,7 @@ def test_pipeline_sanitizes_and_highlights():
 
 def test_production_note_shape_end_to_end():
     content = (
-        "<p>```<br />(person-name some-person)<br />```</p>"
-        "<p>invoke methods, as in `(object:method args ...)`.</p>"
+        "<p>```<br />(person-name some-person)<br />```</p><p>invoke methods, as in `(object:method args ...)`.</p>"
     )
     out = clean(markdown_code(content))
     assert "```" not in out

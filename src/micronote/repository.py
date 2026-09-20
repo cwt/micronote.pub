@@ -272,9 +272,9 @@ def tag_notes(tag):
 
 
 def recent_outbox_notes(limit=10):
-    return DB.activities.find(
-        {"box": Box.OUTBOX.value, "type": "Create", "meta.deleted": False}, limit=limit
-    ).sort("_id", -1)
+    return DB.activities.find({"box": Box.OUTBOX.value, "type": "Create", "meta.deleted": False}, limit=limit).sort(
+        "_id", -1
+    )
 
 
 def outbox_docs():

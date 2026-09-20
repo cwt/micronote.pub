@@ -66,9 +66,7 @@ EXPECTED_ROUTES = [
 
 
 def _route_pairs():
-    return sorted(
-        (rule.rule, tuple(sorted(rule.methods - {"HEAD", "OPTIONS"}))) for rule in app.url_map.iter_rules()
-    )
+    return sorted((rule.rule, tuple(sorted(rule.methods - {"HEAD", "OPTIONS"}))) for rule in app.url_map.iter_rules())
 
 
 def test_url_map_is_frozen():

@@ -430,11 +430,13 @@ same moves in place and keep the private names until Phase 1 lands.
      ```python
      def negotiate(*, html, activitypub):
          """Route to the HTML or ActivityPub handler based on the Accept header."""
+
          @wraps(html)
          def view(**kwargs):
              if is_api_request():
                  return activitypub(**kwargs)
              return html(**kwargs)
+
          return view
      ```
 
@@ -447,11 +449,13 @@ same moves in place and keep the private names until Phase 1 lands.
      ```python
      def activitypub_only(view_func):
          """Reject browser/HTML GET requests with HTTP 404; leave POSTs alone."""
+
          @wraps(view_func)
          def view(**kwargs):
              if request.method in ("GET", "HEAD") and not is_api_request():
                  abort(404)
              return view_func(**kwargs)
+
          return view
      ```
 
