@@ -13,7 +13,7 @@ sources:
   - src/micronote/filters.py
   - src/micronote/api.py
   - src/micronote/admin.py
-verified: unverified
+verified: machine-confirmed
 stale_after: 2027-09-20T00:00:00Z
 tags: [architecture, refactoring, separation-of-concerns, plan, maintainability]
 timestamp: 2026-09-20T00:00:00Z
@@ -81,7 +81,8 @@ Every phase must satisfy all of the following before it is considered done:
    patch targets, never deleted to make a refactor pass.
 4. **Smoke tested.** Eager-mode server boots, a note can be posted, the
    homepage renders, and the worker drains a job when the phase touches
-   those paths. `make lint-web` when templates or rendered HTML change.
+   those paths. `make lint-web` when templates or rendered HTML change
+   (requires resolving the baseline stylelint issue in `app.css:183`).
 5. **One concern.** The phase does not mix a refactor with a behavior change.
    If it grows, split it instead of expanding scope.
 6. **Tracked.** The phase's status is updated in the
@@ -138,22 +139,27 @@ same work in the current file layout and leave a note in the phase status.
 ### Steps
 
 1. Record the baseline: run `make lint` and `pytest`, confirm green, and note
-   the pass count in the [Phase Status](#phase-status) table.
+   the pass count in the [Phase Status](#phase-status) table. Resolve the
+   pre-existing stylelint failure in `src/micronote/static/app.css:183`
+   (`padding: 5px 5px` → `5px`) so `make lint-web` passes as well.
 2. Add `tests/test_url_map.py`: snapshot the sorted `(rule, methods)` pairs
    from `app.url_map`. **Do not snapshot endpoint names** — they change when
    routes move into blueprints in Phase 3.
 3. Add `tests/test_imports.py`: spawn fresh Python processes importing
    `micronote.app`, `micronote.tasks`, and `micronote.worker`, and assert
    exit code 0. This catches import cycles introduced later.
-4. Add `tests/test_response_contract.py` (light): pin the content negotiation
-   contract for `/`, `/outbox`, and `/note/<id>` for both HTML and
-   `application/activity+json` Accept headers. Phase 4 must not change it.
+4. Add `tests/test_response_contract.py`: pin the content negotiation
+   contract for dual routes (`/`, `/note/<id>`, `/followers`, `/following`,
+   `/tags/<tag>`, `/liked`) for both HTML and `application/activity+json` Accept
+   headers, and assert HTTP 404 for browser HTML requests on ActivityPub-only
+   routes (`/outbox`, `/featured`, `/inbox`). Phase 4 must not change this behavior.
 5. Extend cache contract coverage if not already present in
    `tests/test_pin_cache_invalidation.py`: anonymous homepage is cached, and
    posting to the outbox clears it.
 
 ### Files
 
+- `src/micronote/static/app.css` (fix redundant padding shorthand)
 - `tests/test_url_map.py` (new)
 - `tests/test_imports.py` (new)
 - `tests/test_response_contract.py` (new)
@@ -161,14 +167,14 @@ same work in the current file layout and leave a note in the phase status.
 
 ### Verification
 
-- `pytest` green; `make lint` green.
+- `pytest` green; `make lint` green; `make lint-web` green.
 - Deliberately rename a rule in a scratch branch and confirm
   `tests/test_url_map.py` fails (sanity check of the guard).
 
 ### Exit Criteria
 
-- URL map and import guards are committed and passing.
-- Baseline results are recorded.
+- Baseline results are recorded (`pytest`, `make lint`, `make lint-web` all green).
+- URL map, import, and response contract guards are committed and passing.
 
 ### Dependencies
 
@@ -208,7 +214,10 @@ None. This phase only adds tests.
    `activitypub.py:141-144`. Update importers (`activitypub`, `tasks`, `app`,
    `admin`, `api`, `dedup`, tests). This removes the `tasks → activitypub`
    module edge.
-3. Update `tasks.py` to import `enqueue_job` from `jobs`. Update
+3. With `tasks.py` no longer importing `activitypub`, promote the function-level
+   import `from micronote.tasks import post_to_outbox` in `activitypub.py:654`
+   (`MicroblogPubBackend.post_to_outbox`) to a standard top-level module import.
+   Update `tasks.py` to import `enqueue_job` from `jobs`. Update
    `filters.py:104` and `worker.py` likewise. Update tests that patch
    `micronote.tasks.enqueue_job` to patch `micronote.jobs.enqueue_job`
    (`tests/test_filters.py:149,169,181,218`).
@@ -266,12 +275,16 @@ Phase 0 (import and URL guards).
 
 ### Steps
 
-1. Create `src/micronote/cache.py`:
-   - `get_page(path, type_, arg)` / `set_page(path, type_, arg, data)` with
-     the `CACHING` switch moved here from `app.py:376`.
+1. Create `src/micronote/cache.py` (Flask-free domain module):
+   - `get_page(path, type_="html", arg=None, authenticated=False)` and
+     `set_page(path, data, type_="html", arg=None, authenticated=False)` with
+     the `CACHING` switch moved here from `app.py:376`. Explicit parameters keep
+     `cache.py` decoupled from Flask's `request` and `session` globals.
+   - Support both `"html"` and `"api"` cache types (preserving the cached API
+     response for `/nodeinfo` at `app.py:512,541`).
    - `invalidate_for_activity(activity)` — move the policy from
      `tasks.invalidate_cache` (`tasks.py:70-84`) verbatim.
-   - `clear()` — clears the page cache and the counts memo together, so
+   - `clear()` — clears the page cache (`DB.cache2`) and the counts memo together, so
      writers can never invalidate only half the state.
 2. Create `src/micronote/stats.py`: move `_get_counts` queries
    (`app.py:88-133`) and the TTL memo (`_COUNTS_CACHE`); expose `counts()`
@@ -280,8 +293,9 @@ Phase 0 (import and URL guards).
    - `tasks.py`: `invalidate_cache` delegates to
      `cache.invalidate_for_activity`; `post_to_outbox` calls `cache.clear()`.
    - `api.py:166,180`, `worker.py:476`, `app.py:371-372` call `cache.clear()`.
-   - `app.py` read path uses `cache.get_page` / `cache.set_page`;
-     `inject_config` uses `stats.counts()`.
+   - `app.py` read path uses `cache.get_page` / `cache.set_page` (passing
+     `request.path` and `bool(session.get("logged_in"))`); `/nodeinfo` uses
+     `type_="api"`; `inject_config` uses `stats.counts()`.
 4. Update tests: `tests/test_inject_config.py`, `tests/test_drop_cache.py`
    (`_COUNTS_CACHE` imports), `tests/test_pin_cache_invalidation.py`, and the
    `micronote.worker.tasks.invalidate_cache` patch target in
@@ -340,7 +354,7 @@ Phase 1 (`jobs.py` exists; `worker.py` imports are clean).
 4. Move route groups into blueprints, preserving rules, methods, and
    behavior:
    - `views.py`: `index`, `with_replies`, `note_by_id`, `tags`,
-     `followers`, `following`, `liked`.
+     `followers`, `following`, `liked`, `drop_cache` (debug-only POST).
    - `ap_routes.py`: `outbox`, `outbox_detail`, `outbox_activity`,
      `outbox_activity_replies`, `outbox_activity_likes`,
      `outbox_activity_shares`, `inbox`, `featured`.
@@ -353,9 +367,11 @@ Phase 1 (`jobs.py` exists; `worker.py` imports are clean).
 5. Keep `app.py` as the factory: Flask creation, config update, CSRF,
    blueprint registration, error handlers, context processor,
    `after_request`.
-6. Update the only affected `url_for` call: `app.py:492` becomes
-   `url_for("ap.outbox_activity", item_id=note_id)`. Template `url_for`
-   calls are already blueprint-qualified and unchanged.
+6. Update affected call sites and test targets:
+   - `app.py:492` becomes `url_for("ap.outbox_activity", item_id=note_id)`.
+     (Template `url_for` calls are already blueprint-qualified and unchanged).
+   - Update patch targets in `tests/test_drop_cache.py` from `micronote.app.*`
+     to `micronote.views.*`.
 
 ### Files
 
@@ -386,35 +402,54 @@ same moves in place and keep the private names until Phase 1 lands.
 
 ### Why
 
-- Fifteen content-negotiation branches sit inside handler bodies:
+- Twelve content-negotiation and Accept-filtering branches sit inside handler bodies:
   `app.py:405,491,697,762,797,835,874,946,971,1009,1044,1059`.
-- Each dual-purpose route mixes two delivery mechanisms, and page caching is
+- Dual-purpose routes mix two delivery mechanisms, and page caching is
   applied ad hoc to the HTML branch only (`app.py:407-442`).
+- ActivityPub-only protocol routes (`/outbox`, `/featured`, `/inbox`, `/outbox/<id>/*`)
+  mix 404 rejection logic for browser requests directly within handler bodies.
 
 ### Steps
 
-1. Add a dispatcher to `web.py` (or a new `web/negotiation.py`), using named
-   functions only:
+1. Add delivery decorators to `web.py` (or a new `web/negotiation.py`):
+   - `negotiate(*, html, activitypub)` for true dual-representation routes:
 
-   ```python
-   def negotiate(*, html, activitypub):
-       """Route to the HTML or ActivityPub handler based on the Accept header."""
-       @wraps(html)
-       def view(**kwargs):
-           if is_api_request():
-               return activitypub(**kwargs)
-           return html(**kwargs)
-       return view
-   ```
+     ```python
+     def negotiate(*, html, activitypub):
+         """Route to the HTML or ActivityPub handler based on the Accept header."""
+         @wraps(html)
+         def view(**kwargs):
+             if is_api_request():
+                 return activitypub(**kwargs)
+             return html(**kwargs)
+         return view
+     ```
 
-2. Split each dual route into two named handlers and register through the
-   dispatcher: `/`, `/outbox` (GET), `/followers`, `/following`,
-   `/tags/<tag>`, `/liked`, `/featured`, `/note/<note_id>`.
-   Keep POST-only routes (`/outbox`, `/inbox`) as single handlers, and keep
-   the `/outbox/<id>/*` collection endpoints ActivityPub-only.
-3. Add a `@page_cache` decorator for HTML handlers (backed by `cache.py`)
-   that derives its cache key from `request.path` plus pagination args, and
-   remove the per-route `cache.get_page` / `cache.set_page` calls.
+   - `@activitypub_only` for protocol endpoints that reject browser/HTML traffic with 404:
+
+     ```python
+     def activitypub_only(view_func):
+         """Reject non-ActivityPub requests with HTTP 404."""
+         @wraps(view_func)
+         def view(**kwargs):
+             if not is_api_request():
+                 abort(404)
+             return view_func(**kwargs)
+         return view
+     ```
+
+2. Wire routes cleanly by delivery type:
+   - **Dual representation routes**: `/`, `/note/<note_id>`, `/followers`,
+     `/following`, `/tags/<tag>`, `/liked`. Split each into two named handlers
+     (`*_html` and `*_ap`) registered through `negotiate(*, html=..., activitypub=...)`.
+   - **ActivityPub-only routes**: `/outbox` (GET collection, POST submission),
+     `/featured`, `/inbox` (GET collection, POST delivery), and `/outbox/<id>/*`
+     sub-collections. Decorate these with `@activitypub_only` instead of passing
+     dummy 404 HTML handlers to `negotiate`.
+3. Add a `@page_cache(type_="html")` decorator (backed by `cache.py`) that derives
+   its cache key from `request.path` plus pagination args (`older_than`, `newer_than`),
+   bypassing when authenticated. Ensure it supports `type_="api"` for the cached
+   `/nodeinfo` endpoint. Remove per-route manual `cache.get_page` / `cache.set_page` calls.
 4. Keep `wants_html()` in the error handlers unchanged.
 
 ### Files
@@ -465,7 +500,10 @@ existing cache helpers behind the decorator.
 2. Move `paginated_query` (`utils/query.py`) into the repository and change
    its signature to accept explicit `older_than` / `newer_than` values,
    returning `(items, older_than, newer_than)` without reading the request.
-   Call sites pass `request.args`.
+   Raise `ValueError("Invalid cursor")` on unparseable cursor strings rather than
+   calling Flask's `abort(400)`. Flask's existing `@app.errorhandler(ValueError)`
+   in `app.py:183` already maps `ValueError` to HTTP 400, preserving error
+   responses while keeping the repository Flask-free. Call sites pass `request.args`.
 3. Move `build_thread` from `utils/thread.py` to
    `src/micronote/threads.py` and replace `current_app.logger` with a module
    logger. Update `views.py`, `admin.py`, and `tests/test_thread.py`.
@@ -508,8 +546,11 @@ call sites in `app.py` directly.
   `_get_file_url` (`filters.py:114`) → `_enqueue_media_cache`
   (`filters.py:82`) → `enqueue_job`, with two module caches
   (`filters.py:28-29`).
-- Rendering a page should not mutate job state; the caching policy and the
-  formatting filters are unrelated concerns.
+- Media caching policy and formatting filters are unrelated concerns.
+  Moving this logic to `media_urls.py` isolates media discovery and job
+  mutations from template presentation. Jinja filter wrappers delegate to
+  `media_urls.py` at render time, preserving on-demand caching semantics
+  without tangling formatting filters with database dependencies.
 
 ### Steps
 
@@ -538,8 +579,8 @@ call sites in `app.py` directly.
 
 ### Exit Criteria
 
-- `filters.py` contains no database writes and no job enqueueing.
-- All media caching policy lives in `media_urls.py`.
+- `filters.py` contains no database writes and no job enqueueing (pure formatting wrappers).
+- All media caching policy and queue mutations live in `media_urls.py`.
 
 ### Dependencies
 
@@ -614,7 +655,10 @@ move only the handlers.
 1. Convert `config.py` service construction to cached accessors:
    `version()`, `key()`, `me()`, `jwt()`, `admin_api_key()`,
    `flask_secret_key()`, and `user_agent()`. Keep pure settings constants as
-   module-level values.
+   module-level values. Implement Python module-level `__getattr__` in `config.py`
+   to lazily evaluate `ME`, `KEY`, and `VERSION` on first attribute access. This
+   guarantees backward compatibility with Jinja templates (`config.ME.url`,
+   `config.ME.icon.url`) and existing callers without eager import-time execution.
 2. Update call sites:
    - `app.py`: Flask secret key (`app.py:54`), context processor, and
      `activity_json()` content type.
