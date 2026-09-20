@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 from active_boxes.errors import ActivityUnavailableError
 
-from micronote.worker import cache_actor, cache_object
+from micronote.handlers import cache_actor, cache_object
 
 
 def test_cache_object_handles_401_actor_unauthorized():
@@ -26,8 +26,8 @@ def test_cache_object_handles_401_actor_unauthorized():
     mock_db = MagicMock()
 
     with (
-        patch("micronote.worker.ap.fetch_remote_activity_sync", return_value=mock_activity),
-        patch("micronote.worker.DB", mock_db),
+        patch("micronote.handlers.ap.fetch_remote_activity_sync", return_value=mock_activity),
+        patch("micronote.handlers.DB", mock_db),
     ):
         # Must not raise an exception
         cache_object({"iri": mock_activity.id})
@@ -49,8 +49,8 @@ def test_cache_object_handles_unavailable_object():
     mock_db = MagicMock()
 
     with (
-        patch("micronote.worker.ap.fetch_remote_activity_sync", return_value=mock_activity),
-        patch("micronote.worker.DB", mock_db),
+        patch("micronote.handlers.ap.fetch_remote_activity_sync", return_value=mock_activity),
+        patch("micronote.handlers.DB", mock_db),
     ):
         # Must return cleanly without raising
         cache_object({"iri": mock_activity.id})
@@ -69,8 +69,8 @@ def test_cache_actor_handles_401_actor_unauthorized():
     mock_db = MagicMock()
 
     with (
-        patch("micronote.worker.ap.fetch_remote_activity_sync", return_value=mock_activity),
-        patch("micronote.worker.DB", mock_db),
+        patch("micronote.handlers.ap.fetch_remote_activity_sync", return_value=mock_activity),
+        patch("micronote.handlers.DB", mock_db),
     ):
         cache_actor({"iri": mock_activity.id, "also_cache_attachments": False})
 
@@ -114,9 +114,9 @@ def test_cache_object_caches_attachments_and_actor_icon():
     mock_media_cache = MagicMock()
 
     with (
-        patch("micronote.worker.ap.fetch_remote_activity_sync", return_value=mock_activity),
-        patch("micronote.worker.DB", mock_db),
-        patch("micronote.worker.MEDIA_CACHE", mock_media_cache),
+        patch("micronote.handlers.ap.fetch_remote_activity_sync", return_value=mock_activity),
+        patch("micronote.handlers.DB", mock_db),
+        patch("micronote.handlers.MEDIA_CACHE", mock_media_cache),
     ):
         cache_object({"iri": mock_activity.id})
 

@@ -4,8 +4,9 @@ from active_boxes.activitypub import ActivityType
 from active_boxes.errors import ActivityUnavailableError
 
 from micronote import activitypub
+from micronote.handlers import finish_post_to_inbox
 from micronote.tasks import MY_PERSON
-from micronote.worker import finish_post_to_inbox, run_job
+from micronote.worker import run_job
 
 
 def test_inbox_announce_handles_401_actor():
@@ -89,8 +90,8 @@ def test_finish_post_to_inbox_announce_with_401_actor():
     mock_backend = MagicMock()
 
     with (
-        patch("micronote.worker.ap.fetch_remote_activity_sync", return_value=mock_announce),
-        patch("micronote.worker.back", mock_backend),
+        patch("micronote.handlers.ap.fetch_remote_activity_sync", return_value=mock_announce),
+        patch("micronote.handlers.back", mock_backend),
         patch("micronote.cache.invalidate_for_activity"),
     ):
         # Must execute cleanly without exception
@@ -103,10 +104,10 @@ def test_finish_post_to_inbox_handles_remote_unavailable():
     mock_db = MagicMock()
     with (
         patch(
-            "micronote.worker.ap.fetch_remote_activity_sync",
+            "micronote.handlers.ap.fetch_remote_activity_sync",
             side_effect=ActivityUnavailableError("remote 401"),
         ),
-        patch("micronote.worker.DB", mock_db),
+        patch("micronote.handlers.DB", mock_db),
     ):
         # Must return cleanly without raising
         finish_post_to_inbox({"iri": "https://example.com/activity/unavailable"})
@@ -125,7 +126,7 @@ def test_run_job_fails_permanently_after_max_retries():
         raise RuntimeError("boom")
 
     with (
-        patch.dict("micronote.worker.JOB_HANDLERS", {"finish_post_to_inbox": failing_handler}),
+        patch.dict("micronote.handlers.JOB_HANDLERS", {"finish_post_to_inbox": failing_handler}),
         patch("micronote.worker.DB", mock_db),
         patch("micronote.worker.MAX_RETRIES", 3),
         patch("micronote.worker.REMOVE_FAILED_JOBS", False),
@@ -153,7 +154,7 @@ def test_run_job_removes_failed_job_when_configured():
         raise RuntimeError("boom")
 
     with (
-        patch.dict("micronote.worker.JOB_HANDLERS", {"finish_post_to_inbox": failing_handler}),
+        patch.dict("micronote.handlers.JOB_HANDLERS", {"finish_post_to_inbox": failing_handler}),
         patch("micronote.worker.DB", mock_db),
         patch("micronote.worker.MAX_RETRIES", 3),
         patch("micronote.worker.REMOVE_FAILED_JOBS", True),

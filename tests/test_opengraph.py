@@ -3,9 +3,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 from active_boxes.errors import ActivityUnavailableError, NotAnActivityError
 
+from micronote.handlers import fetch_og_metadata as worker_fetch_og_metadata
 from micronote.utils.lookup import lookup
 from micronote.utils.opengraph import fetch_og_metadata
-from micronote.worker import fetch_og_metadata as worker_fetch_og_metadata
 
 
 def test_lookup_converts_non_json_activity_unavailable_to_not_an_activity():
@@ -108,10 +108,10 @@ def test_worker_fetch_og_metadata_handles_unavailable_activity():
     mock_db = MagicMock()
     with (
         patch(
-            "micronote.worker.ap.fetch_remote_activity_sync",
+            "micronote.handlers.ap.fetch_remote_activity_sync",
             side_effect=ActivityUnavailableError("activity unavailable 401"),
         ),
-        patch("micronote.worker.DB", mock_db),
+        patch("micronote.handlers.DB", mock_db),
     ):
         # Must return cleanly without raising
         worker_fetch_og_metadata({"iri": "https://example.com/activity/401"})
