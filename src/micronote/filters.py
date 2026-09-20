@@ -20,6 +20,7 @@ from micronote import actor_cache, media_urls
 from micronote.config import DB, ID, TIMEZONE
 from micronote.utils.emoji import extract_custom_emojis, render_custom_emojis, render_custom_emojis_in_html
 from micronote.utils.highlight import highlight_code_blocks
+from micronote.utils.markdown_code import render_literal_markdown_code
 
 blueprint = flask.Blueprint("filters", __name__, template_folder="templates")
 
@@ -130,6 +131,12 @@ def is_from_outbox(t):
 @blueprint.app_template_filter()
 def clean(html):
     return _clean_html(html)
+
+
+@blueprint.app_template_filter()
+def markdown_code(html):
+    """Renders literal markdown code in federated content (runs before `clean`)."""
+    return render_literal_markdown_code(html)
 
 
 def _cached_actor_emojis(actor_id) -> dict[str, str]:

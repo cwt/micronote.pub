@@ -390,6 +390,22 @@ a:hover {
   scrollbar-width: thin;
 }
 
+.note .note-container code {
+  background: var(--color-menu-background);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+
+/* Converted code fences can leave empty paragraph wrappers behind. */
+.note .note-container p:empty {
+  display: none;
+}
+
+.note .note-container pre code {
+  background: none;
+  padding: 0;
+}
+
 .color-menu-background {
   background: var(--color-menu-background);
 }
