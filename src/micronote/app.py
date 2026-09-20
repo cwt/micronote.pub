@@ -23,6 +23,7 @@ from micronote.config import (
     BASE_URL,
     CDN_URL,
     DB,
+    DEBUG_MODE,
     DOMAIN,
     HEADERS,
     ICON_URL,
@@ -364,11 +365,15 @@ def webauthn_register():
 
 #######
 # Activity pub migrations
-@app.route("/drop_cache")
+@app.route("/drop_cache", methods=["POST"])
 @login_required
 def drop_cache():
+    if not DEBUG_MODE:
+        return flask_jsonify(message="DEBUG_MODE is off"), 403
+    csrf.protect()
     DB.actors.drop()
     DB.cache2.delete_many({})
+    _COUNTS_CACHE.clear()
     return "Done"
 
 
