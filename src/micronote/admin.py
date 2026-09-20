@@ -73,7 +73,6 @@ def admin():
 
     return render_template(
         "admin.html",
-        instances=list(DB.instances.find()),
         inbox_size=DB.activities.count_documents({"box": Box.INBOX.value}),
         outbox_size=DB.activities.count_documents({"box": Box.OUTBOX.value}),
         col_liked=col_liked,

@@ -40,12 +40,12 @@ This index catalogs verified software defects, security vulnerabilities, and alg
 | [BUG-019](./019.md) | _PENDING_CACHE_JOBS DB Dedup Query Is Kind-Blind, Silently Drops Jobs | Low | Media Cache / Worker | Resolved |
 | [BUG-020](./020.md) | inject_config Runs 5 Separate count_documents Queries on Every Template Render | Low | Context Processor / Performance | Resolved |
 | [BUG-021](./021.md) | /drop_cache Route Has No DEBUG_MODE Guard and Can Wipe Production Caches | Medium | Admin / Security | Resolved |
+| [BUG-022](./022.md) | admin.html Receives Unused 'instances' Variable from Empty Collection Query | Low | Admin / Dead Code | Resolved |
 
 ## Active Defect Reports
 
 | Bug ID | Title | Severity | Component | Status |
 | --- | --- | --- | --- | --- |
-| [BUG-022](./022.md) | admin.html Receives Unused 'instances' Variable from Empty Collection Query | Low | Admin / Dead Code | Open |
 | [BUG-023](./023.md) | Pin/Unpin API Does Not Invalidate Page Cache, Serving Stale Homepage for 12h | Medium | Cache / API Consistency | Open |
 | [BUG-024](./024.md) | MY_PERSON and back Instantiated Three Times; api.back Silently Overrides app.back | Low | Module Init / Duplication | Open |
 
@@ -57,9 +57,9 @@ This index catalogs verified software defects, security vulnerabilities, and alg
 - **Critical:** 1 (BUG-010)
 - **High:** 8 (BUG-001, BUG-002, BUG-004, BUG-008, BUG-011, BUG-012, BUG-013, BUG-014)
 - **Medium:** 6 (BUG-003, BUG-005, BUG-007, BUG-017, BUG-018, BUG-021)
-- **Low:** 6 (BUG-006, BUG-009, BUG-015, BUG-016, BUG-019, BUG-020)
+- **Low:** 7 (BUG-006, BUG-009, BUG-015, BUG-016, BUG-019, BUG-020, BUG-022)
 
 **Open:**
 - **High:** 0
 - **Medium:** 1 (BUG-023)
-- **Low:** 2 (BUG-022, BUG-024)
+- **Low:** 1 (BUG-024)

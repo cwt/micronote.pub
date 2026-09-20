@@ -50,3 +50,27 @@ def test_admin_notifications_query_uses_escaped_base():
             assert len(found_regexes) == 3
             for regex_val in found_regexes:
                 assert regex_val == f"^{escaped_base}"
+
+
+def test_admin_dashboard_does_not_query_or_pass_instances():
+    app.config["TESTING"] = True
+
+    mock_db = MagicMock()
+    mock_db.activities.count_documents.return_value = 10
+
+    with app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["logged_in"] = True
+
+        with (
+            patch("micronote.admin.DB", mock_db),
+            patch("micronote.admin.render_template", return_value="OK") as mock_render,
+        ):
+            resp = client.get("/admin")
+            assert resp.status_code == 200
+            assert mock_render.call_count == 1
+            template_name, kwargs = mock_render.call_args[0][0], mock_render.call_args[1]
+            assert template_name == "admin.html"
+            assert "instances" not in kwargs
+            # Ensure DB.instances was never accessed
+            assert mock_db.instances.find.call_count == 0
