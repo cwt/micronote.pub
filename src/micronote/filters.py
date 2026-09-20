@@ -24,7 +24,7 @@ from micronote.utils.media import Kind
 
 blueprint = flask.Blueprint("filters", __name__, template_folder="templates")
 
-_GRIDFS_CACHE: dict[tuple[Kind, str, int | None], str] = {}
+_GRIDFS_CACHE: TTLCache[tuple[Kind, str, int | None], str] = TTLCache(maxsize=4096, ttl=3600)
 _PENDING_CACHE_JOBS: TTLCache[tuple[Kind, str], bool] = TTLCache(maxsize=4096, ttl=300)
 
 # HTML/templates helper

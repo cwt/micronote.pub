@@ -183,3 +183,13 @@ def test_enqueue_media_cache_skips_invalid_urls():
         _enqueue_media_cache(None, Kind.ATTACHMENT)  # type: ignore[arg-type]
         _enqueue_media_cache("/static/img.png", Kind.ATTACHMENT)
         mock_enqueue.assert_not_called()
+
+
+def test_gridfs_cache_is_bounded_ttl_cache():
+    from cachetools import TTLCache
+
+    from micronote.filters import _GRIDFS_CACHE
+
+    assert isinstance(_GRIDFS_CACHE, TTLCache)
+    assert _GRIDFS_CACHE.maxsize == 4096
+    assert _GRIDFS_CACHE.ttl == 3600
