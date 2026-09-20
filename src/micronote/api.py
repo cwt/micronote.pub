@@ -167,6 +167,7 @@ def api_pin():
         {"activity.object.id": note.id, "box": Box.OUTBOX.value},
         {"$set": {"meta.pinned": True}},
     )
+    DB.cache2.delete_many({})
 
     return _user_api_response(pinned=True)
 
@@ -180,6 +181,7 @@ def api_unpin():
         {"activity.object.id": note.id, "box": Box.OUTBOX.value},
         {"$set": {"meta.pinned": False}},
     )
+    DB.cache2.delete_many({})
 
     return _user_api_response(pinned=False)
 
