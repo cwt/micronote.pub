@@ -53,6 +53,9 @@ def _build_thread(data: dict, include_children: bool = True) -> list[dict]:
         if not reply_of:
             current_app.logger.info(f"{rep_id} has no inReplyTo, skipping {rep}")
             continue
+        if reply_of == rep_id:
+            current_app.logger.info(f"{rep_id} has self-referencing inReplyTo, skipping")
+            continue
         try:
             idx[reply_of]["_nodes"].append(rep)
         except KeyError:
@@ -60,13 +63,18 @@ def _build_thread(data: dict, include_children: bool = True) -> list[dict]:
 
     # Flatten the tree
     thread = []
+    visited: set[str] = set()
 
     def _flatten(node, level=0):
+        node_id = node["activity"]["object"]["id"]
+        if node_id in visited:
+            return
+        visited.add(node_id)
         node["_level"] = level
         thread.append(node)
 
         for snode in sorted(
-            idx[node["activity"]["object"]["id"]]["_nodes"],
+            idx[node_id]["_nodes"],
             key=published_of,
         ):
             _flatten(snode, level=level + 1)
