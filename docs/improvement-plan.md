@@ -747,7 +747,7 @@ lower value, higher risk, or blocked by the phases above:
 | Phase | Status | Topic / Bookmark | Landed |
 | --- | --- | --- | --- |
 | 0 — Baseline & structural guardrails | Done | `soc-phase-0-baseline` | 540–541 |
-| 1 — Module boundaries & import cycles | Not started | `soc-phase-1-boundaries` | — |
+| 1 — Module boundaries & import cycles | Done | `soc-phase-1-boundaries` | 543 |
 | 2 — Cache ownership & invalidation | Not started | `soc-phase-2-cache` | — |
 | 3 — Decompose `app.py` into blueprints | Not started | `soc-phase-3-blueprints` | — |
 | 4 — HTML vs ActivityPub responses | Not started | `soc-phase-4-negotiation` | — |
@@ -764,3 +764,10 @@ actually used so a later phase can find the history.
 `tests/test_url_map.py` (54 routes), `tests/test_imports.py`,
 `tests/test_response_contract.py`, plus cache contract cases in
 `tests/test_pin_cache_invalidation.py` (suite now 105 passed).
+
+**Phase 1 landed (2026-09-20, rev 543):** `jobs.py` and `boxes.py` extracted,
+`MicroblogPubBackend.post_to_outbox` deleted (dead delegation), helpers made
+public (`build_thread`, `require_api_auth`, `drop_db`, `actor_to_meta`,
+`safe_object_actor_meta`), worker imports cleaned, dead code removed. All 105
+tests pass; every module imports in a fresh process; eager smoke (post note →
+job chain drains to zero) passes in a throwaway data directory.
