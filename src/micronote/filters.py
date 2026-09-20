@@ -93,6 +93,7 @@ def _enqueue_media_cache(url: str, kind: Kind) -> None:
             {
                 "type": "cache_media_item",
                 "iri": url,
+                "payload.kind": kind.value,
                 "status": {"$in": ["pending", "processing"]},
             }
         )

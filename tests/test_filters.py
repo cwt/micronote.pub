@@ -193,3 +193,38 @@ def test_gridfs_cache_is_bounded_ttl_cache():
     assert isinstance(_GRIDFS_CACHE, TTLCache)
     assert _GRIDFS_CACHE.maxsize == 4096
     assert _GRIDFS_CACHE.ttl == 3600
+
+
+def test_enqueue_media_cache_db_dedup_is_kind_aware():
+    from micronote.filters import _PENDING_CACHE_JOBS, _enqueue_media_cache
+    from micronote.utils.media import Kind
+
+    test_url = "https://remote.example/multi-purpose-asset.png"
+    _PENDING_CACHE_JOBS.clear()
+
+    mock_db = MagicMock()
+
+    # If looking for Kind.ACTOR_ICON, return existing; if looking for ATTACHMENT, return None
+    def find_one_side_effect(query):
+        if query.get("payload.kind") == Kind.ACTOR_ICON.value:
+            return {"_id": "1", "type": "cache_media_item"}
+        return None
+
+    mock_db.jobs.find_one.side_effect = find_one_side_effect
+
+    with (
+        app.app_context(),
+        patch("micronote.filters.DB", mock_db),
+        patch("micronote.tasks.enqueue_job") as mock_enqueue,
+    ):
+        # Kind.ACTOR_ICON has existing pending job -> should skip
+        _enqueue_media_cache(test_url, Kind.ACTOR_ICON)
+        mock_enqueue.assert_not_called()
+
+        # Kind.ATTACHMENT has no pending job for this kind -> should enqueue
+        _enqueue_media_cache(test_url, Kind.ATTACHMENT)
+        mock_enqueue.assert_called_once_with(
+            "cache_media_item",
+            iri=test_url,
+            payload={"kind": "attachment"},
+        )
