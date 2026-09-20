@@ -749,7 +749,7 @@ lower value, higher risk, or blocked by the phases above:
 | 0 — Baseline & structural guardrails | Done | `soc-phase-0-baseline` | 540–541 |
 | 1 — Module boundaries & import cycles | Done | `soc-phase-1-boundaries` | 543 |
 | 2 — Cache ownership & invalidation | Done | `soc-phase-2-cache` | 545 |
-| 3 — Decompose `app.py` into blueprints | Not started | `soc-phase-3-blueprints` | — |
+| 3 — Decompose `app.py` into blueprints | Done | `soc-phase-3-blueprints` | 549 |
 | 4 — HTML vs ActivityPub responses | Not started | `soc-phase-4-negotiation` | — |
 | 5 — Data-access layer & helpers | Not started | `soc-phase-5-repository` | — |
 | 6 — Media resolution out of filters | Not started | `soc-phase-6-media` | — |
@@ -779,3 +779,13 @@ call sites collapsed into `cache.clear()`, and `tasks.invalidate_cache` was
 deleted in favor of `cache.invalidate_for_activity`. All 105 tests pass; cache
 smoke (homepage cached → post clears → recached, nodeinfo `"api"` type cached)
 passes in a throwaway data directory.
+
+**Phase 3 landed (2026-09-20, rev 549):** `app.py` reduced from 996 to 123
+lines (factory, error handlers, context processor, `after_request` only).
+Routes moved into `views.py`, `ap_routes.py`, `wellknown.py`,
+`media_routes.py`, `auth_views.py` (plus `drop_cache` into `admin.py`);
+shared helpers into `web.py`; serialization into `ap_serialize.py`; feed
+builders into `feeds.py`. The frozen URL map guard passes unchanged (54
+routes), all 105 tests pass, `make lint` and `make lint-web` are green, and a
+throwaway-data smoke exercises 20 routes (HTML, AP, feeds, well-known, media,
+`/api/stream`) successfully.
