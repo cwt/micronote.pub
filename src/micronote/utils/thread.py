@@ -7,7 +7,7 @@ def published_of(doc: dict) -> str:
     return doc["activity"]["object"].get("published") or ""
 
 
-def _build_thread(data: dict, include_children: bool = True) -> list[dict]:
+def build_thread(data: dict, include_children: bool = True) -> list[dict]:
     data["_requested"] = True
     current_app.logger.debug(data)
     root_object = data["activity"].get("object")

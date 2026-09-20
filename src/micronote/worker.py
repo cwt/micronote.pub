@@ -27,20 +27,14 @@ from requests.exceptions import HTTPError
 
 from micronote import activitypub, tasks
 from micronote.config import BASE_URL, DB, ID, KEY, MEDIA_CACHE, USER_AGENT, create_db_connection
-from micronote.tasks import (
-    MAX_RETRIES,
-    MY_PERSON,
-    STATUS_FAILED,
-    STATUS_PENDING,
-    STATUS_PROCESSING,
-    back,
-    enqueue_job,
-    log,
-)
+from micronote.instance import MY_PERSON, back
+from micronote.jobs import MAX_RETRIES, STATUS_FAILED, STATUS_PENDING, STATUS_PROCESSING, enqueue_job
 from micronote.utils import opengraph, strtobool
 from micronote.utils.delivery import sign_delivery_request
 from micronote.utils.emoji import extract_custom_emojis
 from micronote.utils.media import Kind
+
+log = logging.getLogger(__name__)
 
 RESUME_TOKEN_ID = "jobs_watch"
 SWEEP_INTERVAL_SECONDS = 60
@@ -198,7 +192,7 @@ def cache_object(job) -> None:
             log.warning(f"remote object for {iri} unavailable ({err}), skipping object cache")
             return
 
-        actor_meta = activitypub._safe_object_actor_meta(obj)
+        actor_meta = activitypub.safe_object_actor_meta(obj)
 
         update_payload = {
             "meta.object": obj.to_dict(embed=True),
@@ -291,7 +285,7 @@ def cache_actor(job) -> None:
                     if follow_target:
                         DB.activities.update_one(
                             {"remote_id": iri},
-                            {"$set": {"meta.object": activitypub._actor_to_meta(follow_target)}},
+                            {"$set": {"meta.object": activitypub.actor_to_meta(follow_target)}},
                         )
                 except (Error, Exception) as err:
                     log.warning(f"unable to cache follow target for {iri}: {err}")
@@ -299,7 +293,7 @@ def cache_actor(job) -> None:
         # Cache the actor info (or fallback to basic dict if remote profile returned 401/error)
         actor_meta = None
         if actor:
-            actor_meta = activitypub._actor_to_meta(actor, cache_actor_with_inbox)
+            actor_meta = activitypub.actor_to_meta(actor, cache_actor_with_inbox)
         else:
             actor_id = getattr(activity, "actor", None)
             if actor_id:

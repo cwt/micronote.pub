@@ -13,7 +13,7 @@ from itsdangerous import BadSignature
 from werkzeug.utils import secure_filename
 
 from micronote import activitypub, tasks
-from micronote.activitypub import Box
+from micronote.boxes import Box
 from micronote.config import (
     ADMIN_API_KEY,
     BASE_URL,
@@ -24,7 +24,7 @@ from micronote.config import (
     IMAGE_MAX_SIZE,
     JWT,
     MEDIA_CACHE,
-    _drop_db,
+    drop_db,
 )
 from micronote.instance import MY_PERSON, back
 from micronote.utils.emoji import flexmoji
@@ -34,7 +34,7 @@ blueprint = flask.Blueprint("api", __name__, template_folder="templates")
 csrf = CSRFProtect(current_app)
 
 
-def _api_required():
+def require_api_auth():
     if session.get("logged_in"):
         if request.method not in ["GET", "HEAD"]:
             # If a standard API request is made with a "login session", it must havw a CSRF token
@@ -57,7 +57,7 @@ def api_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         try:
-            _api_required()
+            require_api_auth()
         except BadSignature:
             abort(401)
 
@@ -215,7 +215,7 @@ def api_debug():
         return flask_jsonify(message="DEBUG_MODE is off")
 
     if request.method == "DELETE":
-        _drop_db()
+        drop_db()
         return flask_jsonify(message="DB dropped")
 
     return flask_jsonify(

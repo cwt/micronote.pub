@@ -191,7 +191,7 @@ def create_indexes():
     )
 
 
-def _drop_db():
+def drop_db():
     if not DEBUG_MODE:
         return
 

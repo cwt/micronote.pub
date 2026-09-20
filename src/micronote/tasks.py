@@ -1,47 +1,13 @@
 import logging
-import os
-from datetime import UTC, datetime
 
 from active_boxes import activitypub as ap
 
-from micronote.activitypub import Box
+from micronote.boxes import Box
 from micronote.config import BASE_URL, DB, ID
 from micronote.instance import MY_PERSON, back
-from micronote.utils import strtobool
+from micronote.jobs import enqueue_job
 
 log = logging.getLogger(__name__)
-
-MAX_RETRIES = int(os.getenv("MICRONOTE_MAX_RETRIES", "3"))
-
-STATUS_PENDING = "pending"
-STATUS_PROCESSING = "processing"
-STATUS_FAILED = "failed"
-
-# Local testing without a worker process: drain the job queue inline
-# after every enqueue. Production runs worker.py instead.
-TASK_EAGER = strtobool(os.getenv("MICRONOTE_TASK_EAGER", "false"))
-
-
-def enqueue_job(job_type, iri=None, payload=None, to=None, also_cache_attachments=True):
-    """Stores a background job; worker.py picks it up via watch()."""
-    job = {
-        "type": job_type,
-        "iri": iri,
-        "payload": payload,
-        "to": to,
-        "also_cache_attachments": also_cache_attachments,
-        "status": STATUS_PENDING,
-        "attempts": 0,
-        "next_run": datetime.now(UTC),
-        "error": None,
-    }
-    DB.jobs.insert_one(job)
-    log.info(f"enqueued {job_type} iri={iri}")
-    if TASK_EAGER:
-        from micronote.worker import drain_jobs
-
-        drain_jobs()
-    return job
 
 
 def post_to_inbox(activity: ap.BaseActivity) -> None:

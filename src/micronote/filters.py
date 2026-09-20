@@ -101,7 +101,7 @@ def _enqueue_media_cache(url: str, kind: Kind) -> None:
         if existing:
             return
 
-        from micronote.tasks import enqueue_job
+        from micronote.jobs import enqueue_job
 
         enqueue_job("cache_media_item", iri=url, payload={"kind": kind.value})
     except Exception as exc:

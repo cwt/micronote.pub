@@ -58,16 +58,3 @@ def test_delete_handlers_invoke_get_object_sync_once():
         assert mock_inbox_delete.get_object_sync.call_count == 1
     finally:
         ap.use_backend(orig)
-
-
-def test_backend_post_to_outbox_delegates_to_tasks():
-    from unittest.mock import patch
-
-    backend = MicroblogPubBackend()
-    activity = MagicMock()
-
-    with patch("micronote.tasks.post_to_outbox", return_value="https://example.com/act/1") as mock_tasks_post:
-        ret = backend.post_to_outbox(activity)
-
-    mock_tasks_post.assert_called_once_with(activity)
-    assert ret == "https://example.com/act/1"

@@ -2,7 +2,6 @@ import json
 import logging
 import os
 from datetime import UTC, datetime
-from enum import StrEnum
 from functools import wraps
 from typing import Any
 
@@ -25,6 +24,7 @@ from flask import abort
 from html2text import html2text
 from neosqlite.objectid import ObjectId
 
+from micronote.boxes import Box
 from micronote.config import (
     BASE_URL,
     DB,
@@ -63,7 +63,7 @@ def json_dumps(data) -> str:
     return json.dumps(data, default=_json_default)
 
 
-def _actor_to_meta(actor: ap.BaseActivity, with_inbox: bool = False) -> dict[str, Any]:
+def actor_to_meta(actor: ap.BaseActivity, with_inbox: bool = False) -> dict[str, Any]:
     meta = {
         "id": actor.id,
         "url": actor.url,
@@ -84,13 +84,13 @@ def _actor_to_meta(actor: ap.BaseActivity, with_inbox: bool = False) -> dict[str
     return meta
 
 
-def _safe_object_actor_meta(obj: ap.BaseActivity | ap.BaseObject) -> dict[str, Any] | None:
+def safe_object_actor_meta(obj: ap.BaseActivity | ap.BaseObject) -> dict[str, Any] | None:
     """Safely extracts actor metadata for an object, falling back to attributedTo if remote fetch fails."""
     actor_meta = None
     try:
         actor = obj.get_actor_sync()
         if actor:
-            actor_meta = _actor_to_meta(actor)
+            actor_meta = actor_to_meta(actor)
     except (ActivityGoneError, ActivityNotFoundError, NotAnActivityError):
         logger.warning(f"object actor for {obj!r} gone or not found")
     except (Error, Exception) as err:
@@ -136,12 +136,6 @@ def ensure_it_is_me(f):
         return f(*args, **kwargs)
 
     return wrapper
-
-
-class Box(StrEnum):
-    INBOX = "inbox"
-    OUTBOX = "outbox"
-    REPLIES = "replies"
 
 
 class MicroblogPubBackend(Backend):
@@ -308,13 +302,6 @@ class MicroblogPubBackend(Backend):
             logger.info(f"{iri} found in cache")
             return ACTORS_CACHE[iri]
 
-        # data = self.DB.actors.find_one({"remote_id": iri})
-        # if data:
-        #    if ap._has_type(data["type"], ap.ACTOR_TYPES):
-        #        logger.info(f"{iri} found in DB cache")
-        #        ACTORS_CACHE[iri] = data["data"]
-        #    return data["data"]
-
         data = self._fetch_iri(iri)
         if data is None:
             # Fetch the URL via HTTP
@@ -356,9 +343,6 @@ class MicroblogPubBackend(Backend):
                 }
             )
         )
-
-    def set_post_to_remote_inbox(self, cb):
-        self.post_to_remote_inbox_cb = cb
 
     @ensure_it_is_me
     def undo_new_follower(self, as_actor: ap.Person, follow: ap.Follow) -> None:
@@ -437,7 +421,7 @@ class MicroblogPubBackend(Backend):
             logger.warning(f"failed to fetch object for Announce {announce.id}: {err}, dropping message")
             return
 
-        actor_meta = _safe_object_actor_meta(obj)
+        actor_meta = safe_object_actor_meta(obj)
         update_payload: dict[str, Any] = {
             "meta.object": obj.to_dict(embed=True),
         }
@@ -470,7 +454,7 @@ class MicroblogPubBackend(Backend):
             logger.warning(f"failed to fetch object for outbox Announce {announce.id}: {err}")
             return
 
-        actor_meta = _safe_object_actor_meta(obj)
+        actor_meta = safe_object_actor_meta(obj)
         update_payload: dict[str, Any] = {
             "meta.object": obj.to_dict(embed=True),
         }
@@ -649,12 +633,6 @@ class MicroblogPubBackend(Backend):
                 {"box": Box.REPLIES.value, "remote_id": {"$in": new_threads}},
                 {"$set": {"meta.thread_root_parent": root_reply}},
             )
-
-    def post_to_outbox(self, activity: ap.BaseActivity) -> str:
-        from micronote.tasks import post_to_outbox
-
-        return post_to_outbox(activity)
-
 
 def gen_feed():
     fg = FeedGenerator()

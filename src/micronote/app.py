@@ -18,7 +18,8 @@ from flask_wtf.csrf import CSRFProtect
 from itsdangerous import BadSignature
 
 from micronote import activitypub, admin, api, config, feeds, filters, indieauth, tasks
-from micronote.activitypub import Box, embed_collection
+from micronote.activitypub import embed_collection
+from micronote.boxes import Box
 from micronote.config import (
     BASE_URL,
     CDN_URL,
@@ -43,7 +44,7 @@ from micronote.utils.headers import noindex
 from micronote.utils.key import get_secret_key
 from micronote.utils.login import login_required
 from micronote.utils.query import paginated_query
-from micronote.utils.thread import _build_thread
+from micronote.utils.thread import build_thread
 
 app = Flask(__name__)
 app.register_blueprint(admin.blueprint)
@@ -208,18 +209,6 @@ def handle_activitypub_error(error):
 @app.errorhandler(500)
 def handle_500(e):
     return render_template("500.html"), 500
-
-
-# @app.errorhandler(Exception)
-# def handle_other_error(error):
-#    logger.error(
-#        f"caught error {error!r}, {traceback.format_tb(error.__traceback__)}"
-#    )
-#    response = flask_jsonify({})
-#    response.status_code = 500
-#    return response
-
-# App migrations
 
 
 ROBOTS_TXT = """User-agent: *
@@ -496,7 +485,7 @@ def note_by_id(note_id):
         abort(404)
     if data["meta"].get("deleted", False):
         abort(410)
-    thread = _build_thread(data)
+    thread = build_thread(data)
     app.logger.info(f"thread={thread!r}")
 
     likes = _collect_actors(data, ActivityType.LIKE)
@@ -714,7 +703,7 @@ def outbox():
 
     # Handle POST request
     try:
-        api._api_required()
+        api.require_api_auth()
     except BadSignature:
         abort(401)
 
@@ -874,7 +863,7 @@ def inbox():
         if not is_api_request():
             abort(404)
         try:
-            api._api_required()
+            api.require_api_auth()
         except BadSignature:
             abort(404)
 

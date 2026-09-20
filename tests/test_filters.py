@@ -146,7 +146,7 @@ def test_get_file_url_enqueues_background_caching_on_miss():
     with (
         app.app_context(),
         patch("micronote.filters.MEDIA_CACHE.get_file", return_value=None),
-        patch("micronote.tasks.enqueue_job") as mock_enqueue,
+        patch("micronote.jobs.enqueue_job") as mock_enqueue,
     ):
         result = _get_file_url(test_url, 720, Kind.ATTACHMENT)
         assert result == test_url
@@ -166,7 +166,7 @@ def test_enqueue_media_cache_deduplication():
 
     with (
         app.app_context(),
-        patch("micronote.tasks.enqueue_job") as mock_enqueue,
+        patch("micronote.jobs.enqueue_job") as mock_enqueue,
     ):
         _enqueue_media_cache(test_url, Kind.ACTOR_ICON)
         _enqueue_media_cache(test_url, Kind.ACTOR_ICON)
@@ -178,7 +178,7 @@ def test_enqueue_media_cache_skips_invalid_urls():
     from micronote.filters import _enqueue_media_cache
     from micronote.utils.media import Kind
 
-    with patch("micronote.tasks.enqueue_job") as mock_enqueue:
+    with patch("micronote.jobs.enqueue_job") as mock_enqueue:
         _enqueue_media_cache("", Kind.ATTACHMENT)
         _enqueue_media_cache(None, Kind.ATTACHMENT)  # type: ignore[arg-type]
         _enqueue_media_cache("/static/img.png", Kind.ATTACHMENT)
@@ -215,7 +215,7 @@ def test_enqueue_media_cache_db_dedup_is_kind_aware():
     with (
         app.app_context(),
         patch("micronote.filters.DB", mock_db),
-        patch("micronote.tasks.enqueue_job") as mock_enqueue,
+        patch("micronote.jobs.enqueue_job") as mock_enqueue,
     ):
         # Kind.ACTOR_ICON has existing pending job -> should skip
         _enqueue_media_cache(test_url, Kind.ACTOR_ICON)

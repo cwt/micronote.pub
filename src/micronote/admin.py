@@ -16,13 +16,13 @@ from active_boxes.errors import (
 from flask import abort, current_app, redirect, render_template, request, session, url_for
 from flask_wtf.csrf import CSRFProtect
 
-from micronote.activitypub import Box
+from micronote.boxes import Box
 from micronote.config import BASE_URL, DB, DOMAIN, PASS, USERNAME
 from micronote.utils.headers import noindex
 from micronote.utils.login import login_required, safe_next_url
 from micronote.utils.lookup import lookup
 from micronote.utils.query import paginated_query
-from micronote.utils.thread import _build_thread
+from micronote.utils.thread import build_thread
 
 blueprint = flask.Blueprint("admin", __name__, template_folder="templates")
 csrf = CSRFProtect(current_app)
@@ -190,7 +190,7 @@ def admin_thread():
         data, _ = _fetch_remote_data(oid)
     if data["meta"].get("deleted", False):
         abort(410)
-    thread = _build_thread(data)
+    thread = build_thread(data)
 
     tpl = "note.html"
     if request.args.get("debug"):
@@ -219,7 +219,7 @@ def admin_new():
         domain = urlparse(actor.id).netloc
         # FIXME(tsileo): if reply of reply, fetch all participants
         content = f"@{actor.preferredUsername}@{domain} "
-        thread = _build_thread(data)
+        thread = build_thread(data)
 
     return render_template("new.html", reply=reply_id, content=content, thread=thread)
 

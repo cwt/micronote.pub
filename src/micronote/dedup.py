@@ -2,7 +2,7 @@
 
 from active_boxes.activitypub import ActivityType
 
-from micronote.activitypub import Box
+from micronote.boxes import Box
 from micronote.config import DB
 
 
