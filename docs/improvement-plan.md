@@ -753,7 +753,7 @@ lower value, higher risk, or blocked by the phases above:
 | 4 — HTML vs ActivityPub responses | Done | `soc-phase-4-negotiation` | 551 |
 | 5 — Data-access layer & helpers | Done | `soc-phase-5-repository` | 553 |
 | 6 — Media resolution out of filters | Done | `soc-phase-6-media` | 555 |
-| 7 — Worker queue runner vs handlers | Not started | `soc-phase-7-handlers` | — |
+| 7 — Worker queue runner vs handlers | Done | `soc-phase-7-handlers` | 557 |
 | 8 — Deferred key material & version | Not started | `soc-phase-8-config` | — |
 
 Update this table when a phase starts or lands, and record the topic name
@@ -819,3 +819,14 @@ literally). The media/actor template filters are thin wrappers. `filters.py`
 now contains no writes and no enqueues (only one read-only actor-cache
 lookup for emojis); all 105 tests pass, lint/lint-web are green, and the
 dedup/kind-aware enqueue behavior stays covered by the existing tests.
+
+**Phase 7 landed (2026-09-20, rev 557):** `handlers.py` (575 lines) now owns
+the ten job handlers, the `JOB_HANDLERS` map, the shared
+`cache_object_media()` helper (deduplicating `cache_object` /
+`cache_attachments`), and the unused `cache_all_custom_emojis` maintenance
+helper. `worker.py` is 156 lines of queue mechanics only (claim, retry,
+watch loop, resume tokens). The `except (Error, Exception)` catch-alls in
+handlers are narrowed to `Error`, leaving the broad catch only at the queue
+boundary in `run_job`. Tests updated for the new module; all 105 pass, lint
+is green, and the eager smoke drains a posted note's whole job chain through
+the runner.
