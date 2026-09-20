@@ -503,10 +503,10 @@ class MicroblogPubBackend(Backend):
 
         logger.info(f"inbox_delete handle_replies obj={obj!r}")
         in_reply_to = obj.inReplyTo
-        if delete.get_object_sync().ACTIVITY_TYPE != ap.ActivityType.NOTE:
+        if obj.ACTIVITY_TYPE != ap.ActivityType.NOTE:
             create_doc = self.DB.activities.find_one(
                 {
-                    "activity.object.id": delete.get_object_sync().id,
+                    "activity.object.id": obj.id,
                     "type": ap.ActivityType.CREATE.value,
                 }
             )
@@ -524,15 +524,15 @@ class MicroblogPubBackend(Backend):
 
     @ensure_it_is_me
     def outbox_delete(self, as_actor: ap.Person, delete: ap.Delete) -> None:
+        obj = delete.get_object_sync()
         self.DB.activities.update_one(
-            {"activity.object.id": delete.get_object_sync().id},
+            {"activity.object.id": obj.id},
             {"$set": {"meta.deleted": True}},
         )
-        obj = delete.get_object_sync()
-        if delete.get_object_sync().ACTIVITY_TYPE != ap.ActivityType.NOTE:
+        if obj.ACTIVITY_TYPE != ap.ActivityType.NOTE:
             create_doc = self.DB.activities.find_one(
                 {
-                    "activity.object.id": delete.get_object_sync().id,
+                    "activity.object.id": obj.id,
                     "type": ap.ActivityType.CREATE.value,
                 }
             )

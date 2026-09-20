@@ -28,3 +28,27 @@ def test_outbox_delete_sets_meta_extra():
     assert _filter == {"meta.object.id": note.id}
     assert update["$set"]["meta.extra"] == "object deleted"
     assert "meta.exta" not in update["$set"]
+
+
+def test_delete_handlers_invoke_get_object_sync_once():
+    from micronote.config import ME
+
+    backend = MicroblogPubBackend()
+    backend.DB = MagicMock()
+    backend._handle_replies_delete = MagicMock()
+    ap.use_backend(backend)
+
+    person = ap.Person(**ME)
+    note = ap.Note(id=f"{ME['id']}/note/1", content="hello", attributedTo=ME["id"])
+
+    # Outbox delete
+    mock_outbox_delete = MagicMock()
+    mock_outbox_delete.get_object_sync.return_value = note
+    backend.outbox_delete(person, mock_outbox_delete)
+    assert mock_outbox_delete.get_object_sync.call_count == 1
+
+    # Inbox delete
+    mock_inbox_delete = MagicMock()
+    mock_inbox_delete.get_object_sync.return_value = note
+    backend.inbox_delete(person, mock_inbox_delete)
+    assert mock_inbox_delete.get_object_sync.call_count == 1

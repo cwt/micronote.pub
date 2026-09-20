@@ -33,12 +33,12 @@ This index catalogs verified software defects, security vulnerabilities, and alg
 | [BUG-012](./012.md) | Unhandled ActivityUnavailableError in worker cache_object and cache_actor Crashes on Remote 401 Unauthorized | High | Worker / Federation | Resolved |
 | [BUG-013](./013.md) | Unhandled ActivityUnavailableError in inbox_announce and Excessive Worker Retries on Remote 401 Actor Fetch | High | ActivityPub / Worker | Resolved |
 | [BUG-014](./014.md) | Infinite Recursion in _build_thread When inReplyTo Self-References | High | Thread Builder | Resolved |
+| [BUG-015](./015.md) | outbox_delete Calls get_object_sync() Multiple Times Redundantly | Low | ActivityPub Backend | Resolved |
 
 ## Active Defect Reports
 
 | Bug ID | Title | Severity | Component | Status |
 | --- | --- | --- | --- | --- |
-| [BUG-015](./015.md) | outbox_delete Calls get_object_sync() Multiple Times Redundantly | Low | ActivityPub Backend | Open |
 | [BUG-016](./016.md) | Duplicate post_to_outbox Logic in tasks.py and activitypub.py | Low | Outbox Post / Dead Code | Open |
 | [BUG-017](./017.md) | serve_grid_file Content-Type Fallback Allows MIME Confusion on /uploads Endpoint | Medium | Media Serving | Open |
 | [BUG-018](./018.md) | _GRIDFS_CACHE Is Unbounded and Grows Without Eviction in Gunicorn Workers | Medium | Template Filters / Memory | Open |
@@ -57,9 +57,9 @@ This index catalogs verified software defects, security vulnerabilities, and alg
 - **Critical:** 1 (BUG-010)
 - **High:** 8 (BUG-001, BUG-002, BUG-004, BUG-008, BUG-011, BUG-012, BUG-013, BUG-014)
 - **Medium:** 3 (BUG-003, BUG-005, BUG-007)
-- **Low:** 2 (BUG-006, BUG-009)
+- **Low:** 3 (BUG-006, BUG-009, BUG-015)
 
 **Open:**
 - **High:** 0
 - **Medium:** 4 (BUG-017, BUG-018, BUG-021, BUG-023)
-- **Low:** 6 (BUG-015, BUG-016, BUG-019, BUG-020, BUG-022, BUG-024)
+- **Low:** 5 (BUG-016, BUG-019, BUG-020, BUG-022, BUG-024)
