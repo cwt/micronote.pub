@@ -748,7 +748,7 @@ lower value, higher risk, or blocked by the phases above:
 | --- | --- | --- | --- |
 | 0 — Baseline & structural guardrails | Done | `soc-phase-0-baseline` | 540–541 |
 | 1 — Module boundaries & import cycles | Done | `soc-phase-1-boundaries` | 543 |
-| 2 — Cache ownership & invalidation | Not started | `soc-phase-2-cache` | — |
+| 2 — Cache ownership & invalidation | Done | `soc-phase-2-cache` | 545 |
 | 3 — Decompose `app.py` into blueprints | Not started | `soc-phase-3-blueprints` | — |
 | 4 — HTML vs ActivityPub responses | Not started | `soc-phase-4-negotiation` | — |
 | 5 — Data-access layer & helpers | Not started | `soc-phase-5-repository` | — |
@@ -771,3 +771,11 @@ public (`build_thread`, `require_api_auth`, `drop_db`, `actor_to_meta`,
 `safe_object_actor_meta`), worker imports cleaned, dead code removed. All 105
 tests pass; every module imports in a fresh process; eager smoke (post note →
 job chain drains to zero) passes in a throwaway data directory.
+
+**Phase 2 landed (2026-09-20, rev 545):** `cache.py` (page cache reads/writes,
+`clear()`, `invalidate_for_activity()`) and `stats.py` (counts read model with
+TTL memo) now own all cache state; the ten scattered `cache2.delete_many({})`
+call sites collapsed into `cache.clear()`, and `tasks.invalidate_cache` was
+deleted in favor of `cache.invalidate_for_activity`. All 105 tests pass; cache
+smoke (homepage cached → post clears → recached, nodeinfo `"api"` type cached)
+passes in a throwaway data directory.
