@@ -750,7 +750,7 @@ lower value, higher risk, or blocked by the phases above:
 | 1 — Module boundaries & import cycles | Done | `soc-phase-1-boundaries` | 543 |
 | 2 — Cache ownership & invalidation | Done | `soc-phase-2-cache` | 545 |
 | 3 — Decompose `app.py` into blueprints | Done | `soc-phase-3-blueprints` | 549 |
-| 4 — HTML vs ActivityPub responses | Not started | `soc-phase-4-negotiation` | — |
+| 4 — HTML vs ActivityPub responses | Done | `soc-phase-4-negotiation` | 551 |
 | 5 — Data-access layer & helpers | Not started | `soc-phase-5-repository` | — |
 | 6 — Media resolution out of filters | Not started | `soc-phase-6-media` | — |
 | 7 — Worker queue runner vs handlers | Not started | `soc-phase-7-handlers` | — |
@@ -789,3 +789,12 @@ builders into `feeds.py`. The frozen URL map guard passes unchanged (54
 routes), all 105 tests pass, `make lint` and `make lint-web` are green, and a
 throwaway-data smoke exercises 20 routes (HTML, AP, feeds, well-known, media,
 `/api/stream`) successfully.
+
+**Phase 4 landed (2026-09-20, rev 551):** `web.py` gained `negotiate`,
+`activitypub_only` (GET/HEAD-gated), and `page_cache` decorators. The six
+dual routes now have separate `*_html` / `*_ap` handlers, the six AP-only
+routes are decorator-gated, and `/nodeinfo` is cached through the decorator
+with its content type preserved. No route body contains `is_api_request()`
+anymore (grep shows it only in `web.py`), all 105 tests pass unchanged,
+`make lint` / `make lint-web` are green, and a throwaway-data smoke checks
+23 negotiation cases including cached nodeinfo headers.
