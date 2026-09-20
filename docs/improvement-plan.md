@@ -752,7 +752,7 @@ lower value, higher risk, or blocked by the phases above:
 | 3 — Decompose `app.py` into blueprints | Done | `soc-phase-3-blueprints` | 549 |
 | 4 — HTML vs ActivityPub responses | Done | `soc-phase-4-negotiation` | 551 |
 | 5 — Data-access layer & helpers | Done | `soc-phase-5-repository` | 553 |
-| 6 — Media resolution out of filters | Not started | `soc-phase-6-media` | — |
+| 6 — Media resolution out of filters | Done | `soc-phase-6-media` | 555 |
 | 7 — Worker queue runner vs handlers | Not started | `soc-phase-7-handlers` | — |
 | 8 — Deferred key material & version | Not started | `soc-phase-8-config` | — |
 
@@ -810,3 +810,12 @@ route modules (`views`, `ap_routes`, `admin`, `api`) contain no raw
 `DB.activities` queries; all 105 tests pass, lint/lint-web are green, and a
 throwaway-data smoke verifies cursor pagination, the 400 on a bad cursor,
 thread pages, and admin pages.
+
+**Phase 6 landed (2026-09-20, rev 555):** `media_urls.py` owns media cache
+lookups, URL resolution, and the deduplicated `cache_media_item` enqueueing;
+`actor_cache.py` owns remote actor fetch + upsert (also moved, so the plan's
+"no database writes or job enqueues from template rendering" goal holds
+literally). The media/actor template filters are thin wrappers. `filters.py`
+now contains no writes and no enqueues (only one read-only actor-cache
+lookup for emojis); all 105 tests pass, lint/lint-web are green, and the
+dedup/kind-aware enqueue behavior stays covered by the existing tests.
