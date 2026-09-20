@@ -28,7 +28,7 @@ def test_drop_cache_succeeds_when_debug_mode_on():
 
     # Seed the counts memo
     mock_db.activities.count_documents.return_value = 1
-    with patch("micronote.stats.DB", mock_db):
+    with patch("micronote.repository.DB", mock_db):
         stats.counts()
 
     with app.test_client() as client:
@@ -48,6 +48,6 @@ def test_drop_cache_succeeds_when_debug_mode_on():
 
     # cache.clear() dropped the counts memo: the next call re-queries the DB
     mock_db.activities.count_documents.reset_mock()
-    with patch("micronote.stats.DB", mock_db):
+    with patch("micronote.repository.DB", mock_db):
         stats.counts()
     assert mock_db.activities.count_documents.call_count == 5

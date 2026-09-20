@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 from flask import Flask
 
-from micronote.utils.thread import build_thread
+from micronote.threads import build_thread
 
 
 def test_build_thread_handles_self_referencing_reply():
@@ -39,7 +39,7 @@ def test_build_thread_handles_self_referencing_reply():
     mock_db = MagicMock()
     mock_db.activities.find.return_value = [self_ref_reply]
 
-    with app.app_context(), patch("micronote.utils.thread.DB", mock_db):
+    with app.app_context(), patch("micronote.threads.DB", mock_db):
         thread = build_thread(root_doc)
 
     assert len(thread) >= 1
@@ -94,7 +94,7 @@ def test_build_thread_handles_cyclical_replies():
     mock_db = MagicMock()
     mock_db.activities.find.return_value = [reply_a, reply_b]
 
-    with app.app_context(), patch("micronote.utils.thread.DB", mock_db):
+    with app.app_context(), patch("micronote.threads.DB", mock_db):
         thread = build_thread(root_doc)
 
     ids = [n["activity"]["object"]["id"] for n in thread]

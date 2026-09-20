@@ -1,5 +1,4 @@
 import json
-import re
 from urllib.parse import urlparse
 
 import bcrypt
@@ -17,14 +16,12 @@ from flask import abort, current_app, redirect, render_template, request, sessio
 from flask import jsonify as flask_jsonify
 from flask_wtf.csrf import CSRFProtect
 
-from micronote import cache
-from micronote.boxes import Box
-from micronote.config import BASE_URL, DB, DEBUG_MODE, DOMAIN, PASS, USERNAME
+from micronote import cache, repository, stats
+from micronote.config import DB, DEBUG_MODE, PASS, USERNAME
+from micronote.threads import build_thread
 from micronote.utils.headers import noindex
 from micronote.utils.login import login_required, safe_next_url
 from micronote.utils.lookup import lookup
-from micronote.utils.query import paginated_query
-from micronote.utils.thread import build_thread
 
 blueprint = flask.Blueprint("admin", __name__, template_folder="templates")
 csrf = CSRFProtect(current_app)
@@ -47,13 +44,7 @@ def _following_map() -> dict[str, str]:
     Lets follow-related pages offer "unfollow" instead of "follow back".
     """
     following_map = {}
-    for doc in DB.activities.find(
-        {
-            "box": Box.OUTBOX.value,
-            "type": ActivityType.FOLLOW.value,
-            "meta.undo": False,
-        }
-    ):
+    for doc in repository.following_docs():
         target = (doc.get("activity") or {}).get("object")
         if isinstance(target, dict):
             target = target.get("id")
@@ -65,33 +56,16 @@ def _following_map() -> dict[str, str]:
 @blueprint.route("/admin", methods=["GET"])
 @login_required
 def admin():
-    q = {
-        "meta.deleted": False,
-        "meta.undo": False,
-        "type": ActivityType.LIKE.value,
-        "box": Box.OUTBOX.value,
-    }
-    col_liked = DB.activities.count_documents(q)
+    counts = stats.counts()
+    sizes = repository.collection_sizes()
 
     return render_template(
         "admin.html",
-        inbox_size=DB.activities.count_documents({"box": Box.INBOX.value}),
-        outbox_size=DB.activities.count_documents({"box": Box.OUTBOX.value}),
-        col_liked=col_liked,
-        col_followers=DB.activities.count_documents(
-            {
-                "box": Box.INBOX.value,
-                "type": ActivityType.FOLLOW.value,
-                "meta.undo": False,
-            }
-        ),
-        col_following=DB.activities.count_documents(
-            {
-                "box": Box.OUTBOX.value,
-                "type": ActivityType.FOLLOW.value,
-                "meta.undo": False,
-            }
-        ),
+        inbox_size=sizes["inbox_size"],
+        outbox_size=sizes["outbox_size"],
+        col_liked=counts["liked_count"],
+        col_followers=counts["followers_count"],
+        col_following=counts["following_count"],
     )
 
 
@@ -181,18 +155,7 @@ def _fetch_remote_data(oid: str):
 @login_required
 def admin_thread():
     oid = request.args.get("oid")
-    data = (
-        DB.activities.find_one(
-            {
-                "$or": [
-                    {"remote_id": oid},
-                    {"activity.object.id": oid},
-                ]
-            }
-        )
-        if oid
-        else None
-    )
+    data = repository.activity_by_ref(oid) if oid else None
     if not data:
         if not oid:
             abort(404)
@@ -219,7 +182,7 @@ def admin_new():
     thread = []
     current_app.logger.debug(request.args)
     if request.args.get("reply"):
-        data = DB.activities.find_one({"activity.object.id": request.args.get("reply")})
+        data = repository.activity_by_object_id(request.args.get("reply"))
         if data:
             reply = ap.parse_activity(data["activity"])
         else:
@@ -241,44 +204,9 @@ def admin_new():
 @login_required
 def admin_notifications():
     # FIXME(tsileo): show unfollow (performed by the current actor) and liked???
-    mentions_query = {
-        "type": ActivityType.CREATE.value,
-        "activity.object.tag.type": "Mention",
-        "activity.object.tag.name": f"@{USERNAME}@{DOMAIN}",
-        "meta.deleted": False,
-    }
-    escaped_base = re.escape(BASE_URL)
-    replies_query = {
-        "type": ActivityType.CREATE.value,
-        "activity.object.inReplyTo": {"$regex": f"^{escaped_base}"},
-    }
-    announced_query = {
-        "type": ActivityType.ANNOUNCE.value,
-        "activity.object": {"$regex": f"^{escaped_base}"},
-    }
-    new_followers_query = {"type": ActivityType.FOLLOW.value}
-    unfollow_query = {
-        "type": ActivityType.UNDO.value,
-        "activity.object.type": ActivityType.FOLLOW.value,
-    }
-    likes_query = {
-        "type": ActivityType.LIKE.value,
-        "activity.object": {"$regex": f"^{escaped_base}"},
-    }
-    followed_query = {"type": ActivityType.ACCEPT.value}
-    q = {
-        "box": Box.INBOX.value,
-        "$or": [
-            mentions_query,
-            announced_query,
-            replies_query,
-            new_followers_query,
-            followed_query,
-            unfollow_query,
-            likes_query,
-        ],
-    }
-    inbox_data, older_than, newer_than = paginated_query(DB.activities, q)
+    inbox_data, older_than, newer_than = repository.notifications_page(
+        request.args.get("older_than"), request.args.get("newer_than")
+    )
 
     return render_template(
         "stream.html",
@@ -292,15 +220,19 @@ def admin_notifications():
 @blueprint.route("/admin/stream")
 @login_required
 def admin_stream():
-    q = {"meta.stream": True, "meta.deleted": False}
-
+    include_all = False
     tpl = "stream.html"
     if request.args.get("debug"):
         tpl = "stream_debug.html"
         if request.args.get("debug_inbox"):
-            q = {}
+            include_all = True
 
-    inbox_data, older_than, newer_than = paginated_query(DB.activities, q, limit=requested_limit())
+    inbox_data, older_than, newer_than = repository.stream_page(
+        request.args.get("older_than"),
+        request.args.get("newer_than"),
+        limit=requested_limit(),
+        include_all=include_all,
+    )
 
     return render_template(
         tpl, inbox_data=inbox_data, older_than=older_than, newer_than=newer_than, following_map=_following_map()

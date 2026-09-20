@@ -12,7 +12,7 @@ from flask_wtf.csrf import CSRFProtect
 from itsdangerous import BadSignature
 from werkzeug.utils import secure_filename
 
-from micronote import activitypub, cache, feeds, tasks
+from micronote import activitypub, cache, feeds, repository, tasks
 from micronote.boxes import Box
 from micronote.config import (
     ADMIN_API_KEY,
@@ -26,7 +26,7 @@ from micronote.config import (
     MEDIA_CACHE,
     drop_db,
 )
-from micronote.instance import MY_PERSON, back
+from micronote.instance import MY_PERSON
 from micronote.utils.emoji import flexmoji
 from micronote.utils.login import login_required
 
@@ -186,12 +186,7 @@ def api_unpin():
 @api_required
 def api_undo():
     oid = _user_api_arg("id")
-    doc = DB.activities.find_one(
-        {
-            "box": Box.OUTBOX.value,
-            "$or": [{"remote_id": back.activity_url(oid)}, {"remote_id": oid}],
-        }
-    )
+    doc = repository.outbox_item_any(oid)
     if not doc:
         raise ActivityNotFoundError(f"cannot found {oid}")
 
@@ -218,10 +213,11 @@ def api_debug():
         drop_db()
         return flask_jsonify(message="DB dropped")
 
+    sizes = repository.collection_sizes()
     return flask_jsonify(
-        inbox=DB.activities.count_documents({"box": Box.INBOX.value}),
-        outbox=DB.activities.count_documents({"box": Box.OUTBOX.value}),
-        outbox_data=without_id(DB.activities.find({"box": Box.OUTBOX.value})),
+        inbox=sizes["inbox_size"],
+        outbox=sizes["outbox_size"],
+        outbox_data=without_id(repository.outbox_docs()),
     )
 
 
@@ -302,14 +298,7 @@ def api_stream():
 def api_block():
     actor = _user_api_arg("actor")
 
-    existing = DB.activities.find_one(
-        {
-            "box": Box.OUTBOX.value,
-            "type": ActivityType.BLOCK.value,
-            "activity.object": actor,
-            "meta.undo": False,
-        }
-    )
+    existing = repository.block_activity(actor)
     if existing:
         return _user_api_response(activity=existing["activity"]["id"])
 
@@ -324,14 +313,7 @@ def api_block():
 def api_follow():
     actor = _user_api_arg("actor")
 
-    q = {
-        "box": Box.OUTBOX.value,
-        "type": ActivityType.FOLLOW.value,
-        "meta.undo": False,
-        "activity.object": actor,
-    }
-
-    existing = DB.activities.find_one(q)
+    existing = repository.follow_activity(actor)
     if existing:
         return _user_api_response(activity=existing["activity"]["id"])
 

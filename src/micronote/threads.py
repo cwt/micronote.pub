@@ -1,6 +1,10 @@
-from flask import current_app
+"""Thread building from stored activity documents (Flask-free)."""
+
+import logging
 
 from micronote.config import DB
+
+log = logging.getLogger(__name__)
 
 
 def published_of(doc: dict) -> str:
@@ -9,7 +13,7 @@ def published_of(doc: dict) -> str:
 
 def build_thread(data: dict, include_children: bool = True) -> list[dict]:
     data["_requested"] = True
-    current_app.logger.debug(data)
+    log.debug(data)
     root_object = data["activity"].get("object")
     if not isinstance(root_object, dict):
         return [data]
@@ -51,15 +55,15 @@ def build_thread(data: dict, include_children: bool = True) -> list[dict]:
             continue
         reply_of = rep["activity"]["object"].get("inReplyTo")
         if not reply_of:
-            current_app.logger.info(f"{rep_id} has no inReplyTo, skipping {rep}")
+            log.info(f"{rep_id} has no inReplyTo, skipping {rep}")
             continue
         if reply_of == rep_id:
-            current_app.logger.info(f"{rep_id} has self-referencing inReplyTo, skipping")
+            log.info(f"{rep_id} has self-referencing inReplyTo, skipping")
             continue
         try:
             idx[reply_of]["_nodes"].append(rep)
         except KeyError:
-            current_app.logger.info(f"{reply_of} is not there! skipping {rep}")
+            log.info(f"{reply_of} is not there! skipping {rep}")
 
     # Flatten the tree
     thread = []
@@ -82,6 +86,6 @@ def build_thread(data: dict, include_children: bool = True) -> list[dict]:
     try:
         _flatten(idx[root_id])
     except KeyError:
-        current_app.logger.info(f"{root_id} is not there! skipping")
+        log.info(f"{root_id} is not there! skipping")
 
     return thread

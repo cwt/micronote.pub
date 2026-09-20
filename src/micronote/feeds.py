@@ -8,7 +8,7 @@ from flask import Response, abort
 from html2text import html2text
 from neosqlite.objectid import ObjectId
 
-from micronote import activitypub
+from micronote import activitypub, repository
 from micronote.boxes import Box
 from micronote.config import DB, ID, ME, USERNAME
 
@@ -24,9 +24,7 @@ def gen_feed():
     fg.description(f"{USERNAME} notes")
     fg.logo(ME.get("icon", {}).get("url"))
     fg.language("en")
-    for item in DB.activities.find({"box": Box.OUTBOX.value, "type": "Create", "meta.deleted": False}, limit=10).sort(
-        "_id", -1
-    ):
+    for item in repository.recent_outbox_notes(limit=10):
         fe = fg.add_entry()
         fe.id(item["activity"]["object"].get("url"))
         fe.link(href=item["activity"]["object"].get("url"))
@@ -52,9 +50,7 @@ def _feed_item(item: dict[str, Any], author: dict[str, Any] | None = None) -> di
 
 def build_json_feed(path: str) -> dict[str, Any]:
     """JSON Feed (https://jsonfeed.org/) document."""
-    items = DB.activities.find({"box": Box.OUTBOX.value, "type": "Create", "meta.deleted": False}, limit=10).sort(
-        "_id", -1
-    )
+    items = repository.recent_outbox_notes(limit=10)
     data = [_feed_item(item) for item in items]
     return {
         "version": "https://jsonfeed.org/version/1",

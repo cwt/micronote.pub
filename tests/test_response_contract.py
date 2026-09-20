@@ -25,7 +25,7 @@ def test_dual_routes_serve_html_and_activitypub():
     with (
         patch("micronote.cache.get_page", return_value=None),
         patch("micronote.cache.set_page"),
-        patch("micronote.views.paginated_query", return_value=([], None, None)),
+        patch("micronote.repository.paginated_query", return_value=([], None, None)),
     ):
         with app.test_client() as client:
             for path in ("/", "/followers", "/liked"):

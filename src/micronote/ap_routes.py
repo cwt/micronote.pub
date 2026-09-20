@@ -10,10 +10,10 @@ from active_boxes.httpsig import verify_request_sync
 from flask import Blueprint, Response, abort, request
 from itsdangerous import BadSignature
 
-from micronote import ap_serialize, api, tasks
+from micronote import ap_serialize, api, repository, tasks
 from micronote.boxes import Box
 from micronote.config import DB
-from micronote.instance import MY_PERSON, back
+from micronote.instance import MY_PERSON
 from micronote.web import activity_json, activitypub_only
 
 blueprint = Blueprint("ap", __name__, template_folder="templates")
@@ -33,7 +33,7 @@ def outbox():
         }
         return activity_json(
             **ap_serialize.build_ordered_collection(
-                DB.activities,
+                repository.activities(),
                 q=q,
                 cursor=request.args.get("cursor"),
                 map_func=ap_serialize.activity_from_doc_embedded,
@@ -57,7 +57,7 @@ def outbox():
 
 @blueprint.route("/outbox/<item_id>")
 def outbox_detail(item_id):
-    doc = DB.activities.find_one({"box": Box.OUTBOX.value, "remote_id": back.activity_url(item_id)})
+    doc = repository.outbox_item(item_id, include_deleted=True)
     if not doc:
         abort(404)
 
@@ -71,7 +71,7 @@ def outbox_detail(item_id):
 
 @blueprint.route("/outbox/<item_id>/activity")
 def outbox_activity(item_id):
-    data = DB.activities.find_one({"box": Box.OUTBOX.value, "remote_id": back.activity_url(item_id)})
+    data = repository.outbox_item(item_id, include_deleted=True)
     if not data:
         abort(404)
     obj = ap_serialize.activity_from_doc(data)
@@ -89,13 +89,7 @@ def outbox_activity(item_id):
 @blueprint.route("/outbox/<item_id>/replies")
 @activitypub_only
 def outbox_activity_replies(item_id):
-    data = DB.activities.find_one(
-        {
-            "box": Box.OUTBOX.value,
-            "remote_id": back.activity_url(item_id),
-            "meta.deleted": False,
-        }
-    )
+    data = repository.outbox_item(item_id)
     if not data:
         abort(404)
     obj = ap.parse_activity(data["activity"])
@@ -123,13 +117,7 @@ def outbox_activity_replies(item_id):
 @blueprint.route("/outbox/<item_id>/likes")
 @activitypub_only
 def outbox_activity_likes(item_id):
-    data = DB.activities.find_one(
-        {
-            "box": Box.OUTBOX.value,
-            "remote_id": back.activity_url(item_id),
-            "meta.deleted": False,
-        }
-    )
+    data = repository.outbox_item(item_id)
     if not data:
         abort(404)
     obj = ap.parse_activity(data["activity"])
@@ -160,13 +148,7 @@ def outbox_activity_likes(item_id):
 @blueprint.route("/outbox/<item_id>/shares")
 @activitypub_only
 def outbox_activity_shares(item_id):
-    data = DB.activities.find_one(
-        {
-            "box": Box.OUTBOX.value,
-            "remote_id": back.activity_url(item_id),
-            "meta.deleted": False,
-        }
-    )
+    data = repository.outbox_item(item_id)
     if not data:
         abort(404)
     obj = ap.parse_activity(data["activity"])
@@ -205,7 +187,7 @@ def inbox():
 
         return activity_json(
             **ap_serialize.build_ordered_collection(
-                DB.activities,
+                repository.activities(),
                 q={"meta.deleted": False, "box": Box.INBOX.value},
                 cursor=request.args.get("cursor"),
                 map_func=ap_serialize.activity_without_context,
@@ -267,12 +249,5 @@ def inbox():
 @blueprint.route("/featured")
 @activitypub_only
 def featured():
-    q = {
-        "box": Box.OUTBOX.value,
-        "type": ActivityType.CREATE.value,
-        "meta.deleted": False,
-        "meta.undo": False,
-        "meta.pinned": True,
-    }
-    data = [clean_activity(doc["activity"]["object"]) for doc in DB.activities.find(q)]
+    data = [clean_activity(doc["activity"]["object"]) for doc in repository.pinned_notes()]
     return activity_json(**ap_serialize.simple_build_ordered_collection("featured", data))

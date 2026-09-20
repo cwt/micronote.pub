@@ -53,7 +53,7 @@ def test_admin_stream_announce_renders_without_network_call():
             sess["logged_in"] = True
 
         with (
-            patch("micronote.admin.paginated_query", return_value=([mock_item], None, None)),
+            patch("micronote.repository.paginated_query", return_value=([mock_item], None, None)),
             patch("micronote.admin._following_map", return_value={}),
             patch("micronote.filters.get_backend", return_value=mock_backend),
         ):

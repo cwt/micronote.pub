@@ -3,16 +3,13 @@
 import json
 import mimetypes
 
-from active_boxes.activitypub import ActivityType
 from flask import Blueprint, Response, abort, current_app, request
 from flask import jsonify as flask_jsonify
 
-from micronote import activitypub
-from micronote.boxes import Box
+from micronote import activitypub, repository
 from micronote.config import (
     BASE_URL,
     CDN_URL,
-    DB,
     DOMAIN,
     ICON_URL,
     ID,
@@ -46,12 +43,6 @@ def robots_txt():
 @blueprint.route("/nodeinfo")
 @page_cache(type_="api", content_type=NODEINFO_CONTENT_TYPE)
 def nodeinfo():
-    q = {
-        "box": Box.OUTBOX.value,
-        "meta.deleted": False,  # TODO(tsileo): retrieve deleted and expose tombstone
-        "type": {"$in": [ActivityType.CREATE.value, ActivityType.ANNOUNCE.value]},
-    }
-
     response = json.dumps(
         {
             "version": "2.0",
@@ -62,7 +53,7 @@ def nodeinfo():
             "protocols": ["activitypub"],
             "services": {"inbound": [], "outbound": []},
             "openRegistrations": False,
-            "usage": {"users": {"total": 1}, "localPosts": DB.activities.count_documents(q)},
+            "usage": {"users": {"total": 1}, "localPosts": repository.local_posts_count()},
             "metadata": {
                 "sourceCode": "https://github.com/cwt/micronote.pub",
                 "nodeName": f"@{USERNAME}@{DOMAIN}",

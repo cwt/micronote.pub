@@ -1,6 +1,7 @@
 import re
 from unittest.mock import MagicMock, patch
 
+from micronote import stats
 from micronote.app import app
 from micronote.config import BASE_URL
 
@@ -28,7 +29,7 @@ def test_admin_notifications_query_uses_escaped_base():
 
         mock_paginated = MagicMock(return_value=([], None, None))
         with (
-            patch("micronote.admin.paginated_query", mock_paginated),
+            patch("micronote.repository.paginated_query", mock_paginated),
             patch("micronote.admin.render_template", return_value="OK"),
         ):
             resp = client.get("/admin/notifications")
@@ -62,8 +63,9 @@ def test_admin_dashboard_does_not_query_or_pass_instances():
         with client.session_transaction() as sess:
             sess["logged_in"] = True
 
+        stats.clear_counts()
         with (
-            patch("micronote.admin.DB", mock_db),
+            patch("micronote.repository.DB", mock_db),
             patch("micronote.admin.render_template", return_value="OK") as mock_render,
         ):
             resp = client.get("/admin")

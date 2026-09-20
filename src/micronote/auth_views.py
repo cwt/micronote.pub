@@ -3,14 +3,12 @@
 import json
 
 from active_boxes import activitypub as ap
-from active_boxes.activitypub import ActivityType
 from active_boxes.webfinger import get_actor_url_sync, get_remote_follow_template_sync
 from flask import Blueprint, abort, current_app, redirect, render_template, request
 from flask_wtf.csrf import CSRFProtect
 
-from micronote import tasks
-from micronote.boxes import Box
-from micronote.config import DB, DOMAIN, USERNAME
+from micronote import repository, tasks
+from micronote.config import DOMAIN, USERNAME
 from micronote.instance import MY_PERSON
 from micronote.utils.login import login_required
 
@@ -47,13 +45,7 @@ def authorize_follow():
     if not actor:
         abort(404)
 
-    q = {
-        "box": Box.OUTBOX.value,
-        "type": ActivityType.FOLLOW.value,
-        "meta.undo": False,
-        "activity.object": actor,
-    }
-    if DB.activities.count_documents(q) > 0:
+    if repository.follow_activity(actor):
         return redirect("/following")
 
     follow = ap.Follow(actor=MY_PERSON.id, object=actor)

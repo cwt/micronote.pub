@@ -59,7 +59,7 @@ def test_api_unpin_invalidates_cache2():
 def test_anonymous_homepage_is_cached():
     with app.test_client() as client:
         with (
-            patch("micronote.views.paginated_query", return_value=([], None, None)),
+            patch("micronote.repository.paginated_query", return_value=([], None, None)),
             patch("micronote.cache.set_page") as mock_set_page,
         ):
             assert client.get("/", headers={"Accept": "text/html"}).status_code == 200

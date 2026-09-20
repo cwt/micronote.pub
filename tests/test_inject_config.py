@@ -11,7 +11,7 @@ def test_inject_config_caches_counts():
     mock_db.activities.count_documents.return_value = 42
 
     with app.test_request_context("/"):
-        with patch("micronote.stats.DB", mock_db):
+        with patch("micronote.repository.DB", mock_db):
             # First render: populates cache with 5 queries
             ctx1 = inject_config()
             assert ctx1["notes_count"] == 42
