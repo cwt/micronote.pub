@@ -751,7 +751,7 @@ lower value, higher risk, or blocked by the phases above:
 | 2 — Cache ownership & invalidation | Done | `soc-phase-2-cache` | 545 |
 | 3 — Decompose `app.py` into blueprints | Done | `soc-phase-3-blueprints` | 549 |
 | 4 — HTML vs ActivityPub responses | Done | `soc-phase-4-negotiation` | 551 |
-| 5 — Data-access layer & helpers | Not started | `soc-phase-5-repository` | — |
+| 5 — Data-access layer & helpers | Done | `soc-phase-5-repository` | 553 |
 | 6 — Media resolution out of filters | Not started | `soc-phase-6-media` | — |
 | 7 — Worker queue runner vs handlers | Not started | `soc-phase-7-handlers` | — |
 | 8 — Deferred key material & version | Not started | `soc-phase-8-config` | — |
@@ -798,3 +798,15 @@ with its content type preserved. No route body contains `is_api_request()`
 anymore (grep shows it only in `web.py`), all 105 tests pass unchanged,
 `make lint` / `make lint-web` are green, and a throwaway-data smoke checks
 23 negotiation cases including cached nodeinfo headers.
+
+**Phase 5 landed (2026-09-20, rev 553):** `repository.py` now owns every
+activity query (items, pages, notifications, streams, tags, counts) and
+`threads.py` owns thread building; both import without a Flask context.
+`paginated_query` takes explicit cursors and raises `ValueError` (mapped to
+400 by the app handler) instead of aborting. `stats.py` is now just the
+counts memo over `repository.counts()`, admin dashboard counts are
+deduplicated, and `utils/query.py` / `utils/thread.py` are deleted. The
+route modules (`views`, `ap_routes`, `admin`, `api`) contain no raw
+`DB.activities` queries; all 105 tests pass, lint/lint-web are green, and a
+throwaway-data smoke verifies cursor pagination, the 400 on a bad cursor,
+thread pages, and admin pages.
