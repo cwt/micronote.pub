@@ -110,15 +110,15 @@ python scripts/ap_matrix.py all
 
 | Phase | Focus | Criticality | Depends on | Size | Status |
 | --- | --- | --- | --- | --- | --- |
-| [0](#phase-0--baseline--structural-guardrails) | Baseline & structural guardrails | Prep | — | S | Not started |
-| [1](#phase-1--module-boundaries--import-cycles) | Module boundaries & import cycles | Critical | 0 | S | Not started |
-| [2](#phase-2--cache-ownership--invalidation) | Cache ownership & invalidation | Critical | 1 | M | Not started |
-| [3](#phase-3--decompose-apppy-into-blueprints) | Decompose `app.py` into blueprints | High | 1 | M | Not started |
-| [4](#phase-4--separate-html-and-activitypub-responses) | HTML vs ActivityPub response separation | High | 3 | M | Not started |
-| [5](#phase-5--data-access-layer--flask-free-helpers) | Data-access layer & Flask-free helpers | High | 3, 4 | L | Not started |
-| [6](#phase-6--media-resolution-out-of-template-filters) | Media resolution out of template filters | Medium | 1 | S | Not started |
-| [7](#phase-7--worker-queue-runner-vs-job-handlers) | Worker: queue runner vs job handlers | Medium | 1 | M | Not started |
-| [8](#phase-8--deferred-key-material--version) | Deferred key material & version | Medium | 1 | M | Not started |
+| [0](#phase-0--baseline--structural-guardrails) | Baseline & structural guardrails | Prep | — | S | Done |
+| [1](#phase-1--module-boundaries--import-cycles) | Module boundaries & import cycles | Critical | 0 | S | Done |
+| [2](#phase-2--cache-ownership--invalidation) | Cache ownership & invalidation | Critical | 1 | M | Done |
+| [3](#phase-3--decompose-apppy-into-blueprints) | Decompose `app.py` into blueprints | High | 1 | M | Done |
+| [4](#phase-4--separate-html-and-activitypub-responses) | HTML vs ActivityPub response separation | High | 3 | M | Done |
+| [5](#phase-5--data-access-layer--flask-free-helpers) | Data-access layer & Flask-free helpers | High | 3, 4 | L | Done |
+| [6](#phase-6--media-resolution-out-of-template-filters) | Media resolution out of template filters | Medium | 1 | S | Done |
+| [7](#phase-7--worker-queue-runner-vs-job-handlers) | Worker: queue runner vs job handlers | Medium | 1 | M | Done |
+| [8](#phase-8--deferred-key-material--version) | Deferred key material & version | Medium | 1 | M | Done |
 
 Sizes are rough: **S** ≤ 1 day, **M** = 1–3 days, **L** = 3–5 days.
 
