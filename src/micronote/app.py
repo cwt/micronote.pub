@@ -22,8 +22,7 @@ from micronote import (
     views,
     wellknown,
 )
-from micronote.config import ME, SCHEME, VERSION
-from micronote.utils.key import get_secret_key
+from micronote.config import SCHEME
 from micronote.web import wants_html
 
 app = Flask(__name__)
@@ -37,7 +36,7 @@ app.register_blueprint(indieauth.blueprint)
 app.register_blueprint(media_routes.blueprint)
 app.register_blueprint(views.blueprint)
 app.register_blueprint(wellknown.blueprint)
-app.secret_key = get_secret_key("flask")
+app.secret_key = config.flask_secret_key()
 app.config.update(
     WTF_CSRF_CHECK_DEFAULT=False,
     SESSION_COOKIE_HTTPONLY=True,
@@ -71,10 +70,10 @@ logging.getLogger("active_boxes").setLevel(logging.CRITICAL)
 @app.context_processor
 def inject_config():
     return {
-        "micronote_version": VERSION,
+        "micronote_version": config.version(),
         "config": config,
         "logged_in": session.get("logged_in", False),
-        "me": ME,
+        "me": config.me(),
         **stats.counts(),
     }
 

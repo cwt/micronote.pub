@@ -1,5 +1,6 @@
 import mimetypes
 import os
+from collections.abc import Callable
 from enum import StrEnum
 from gzip import GzipFile
 from io import BytesIO
@@ -80,9 +81,17 @@ def _encode_image(img) -> bytes:
 
 
 class MediaCache:
-    def __init__(self, connection_factory, user_agent: str) -> None:
+    def __init__(self, connection_factory, user_agent: str | Callable[[], str]) -> None:
         self._connection_factory = connection_factory
-        self.user_agent = user_agent
+        self._user_agent = user_agent
+
+    @property
+    def user_agent(self) -> str:
+        # `config` passes the accessor so import stays free of key material
+        # and VCS subprocesses; tests pass a plain string.
+        if callable(self._user_agent):
+            return self._user_agent()
+        return self._user_agent
 
     @property
     def _bucket(self) -> GridFSBucket:

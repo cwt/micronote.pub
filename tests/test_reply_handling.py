@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 from active_boxes.errors import ActivityUnavailableError
 
 from micronote.activitypub import MicroblogPubBackend
-from micronote.config import ME
+from micronote.config import me
 
 
 def test_handle_replies_catches_activity_unavailable_error():
@@ -20,7 +20,7 @@ def test_handle_replies_catches_activity_unavailable_error():
     backend = MicroblogPubBackend()
     backend.DB = mock_db
     mock_person = MagicMock()
-    mock_person.id = ME["id"]
+    mock_person.id = me()["id"]
 
     # When remote server returns 401 Unauthorized, active_boxes raises ActivityUnavailableError
     err = ActivityUnavailableError("unable to fetch, unknown error: 401 Unauthorized")
@@ -60,7 +60,7 @@ def test_handle_replies_stops_traversal_on_ancestor_error():
     backend = MicroblogPubBackend()
     backend.DB = mock_db
     mock_person = MagicMock()
-    mock_person.id = ME["id"]
+    mock_person.id = me()["id"]
 
     with (
         patch.object(backend, "save") as mock_save,

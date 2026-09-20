@@ -7,7 +7,7 @@ from flask import Blueprint, abort, redirect, render_template, request, session,
 
 from micronote import ap_serialize, config, repository
 from micronote.boxes import Box
-from micronote.config import ME
+from micronote.config import me
 from micronote.threads import build_thread
 from micronote.utils.login import login_required
 from micronote.web import activity_json, negotiate, page_cache
@@ -39,7 +39,7 @@ def index_html():
 
 
 def index_ap():
-    return activity_json(**ME)
+    return activity_json(**me())
 
 
 blueprint.add_url_rule("/", endpoint="index", view_func=negotiate(html=index_html, activitypub=index_ap))

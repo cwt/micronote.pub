@@ -10,7 +10,7 @@ from neosqlite.objectid import ObjectId
 
 from micronote import activitypub, repository
 from micronote.boxes import Box
-from micronote.config import DB, ID, ME, USERNAME
+from micronote.config import DB, ID, USERNAME, me
 
 blueprint = flask.Blueprint("feeds", __name__, template_folder="templates")
 
@@ -22,7 +22,7 @@ def gen_feed():
     fg.author({"name": USERNAME, "email": "t@a4.io"})
     fg.link(href=ID, rel="alternate")
     fg.description(f"{USERNAME} notes")
-    fg.logo(ME.get("icon", {}).get("url"))
+    fg.logo(me().get("icon", {}).get("url"))
     fg.language("en")
     for item in repository.recent_outbox_notes(limit=10):
         fe = fg.add_entry()
@@ -63,7 +63,7 @@ def build_json_feed(path: str) -> dict[str, Any]:
         "author": {
             "name": USERNAME,
             "url": ID,
-            "avatar": ME.get("icon", {}).get("url"),
+            "avatar": me().get("icon", {}).get("url"),
         },
         "items": data,
     }

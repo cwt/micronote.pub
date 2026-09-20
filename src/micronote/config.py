@@ -4,6 +4,7 @@ import subprocess
 import threading
 from datetime import UTC, datetime
 from enum import StrEnum
+from functools import cache
 from importlib.metadata import version as package_version
 from pathlib import Path
 
@@ -56,10 +57,14 @@ def _detect_version() -> str:
     return result.stdout.split()[0]
 
 
-try:
-    VERSION = _detect_version()
-except Exception:
-    VERSION = "-"
+@cache
+def version() -> str:
+    """VCS/package version, resolved on first use (never at import)."""
+    try:
+        return _detect_version()
+    except Exception:
+        return "-"
+
 
 DEBUG_MODE = strtobool(os.getenv("MICRONOTE_DEBUG", "false"))
 
@@ -97,7 +102,10 @@ TIMEZONE = int(conf.get("timezone_hours", 0))
 CDN_URL = conf.get("cdn_url", "")
 IMAGE_MAX_SIZE = (conf.get("image_max_size", {}).get("width", 1920), conf.get("image_max_size", {}).get("height", 1920))
 
-USER_AGENT = f"{requests.utils.default_user_agent()} (micronote.pub/{VERSION}; +{BASE_URL})"
+
+@cache
+def user_agent() -> str:
+    return f"{requests.utils.default_user_agent()} (micronote.pub/{version()}; +{BASE_URL})"
 
 
 DATA_DIR = Path(os.getenv("MICRONOTE_DATA_DIR", os.path.abspath("data")))
@@ -147,7 +155,7 @@ class _ThreadLocalDB:
 
 DB_NAME = f"{USERNAME}_{DOMAIN.replace('.', '_').replace(':', '_')}"
 DB = create_db_client(DB_NAME)
-MEDIA_CACHE = MediaCache(create_db_connection, USER_AGENT)
+MEDIA_CACHE = MediaCache(create_db_connection, user_agent)
 
 
 def create_indexes():
@@ -198,39 +206,66 @@ def drop_db():
     create_db_connection().drop_database(DB_NAME)
 
 
-KEY = get_key(ID, USERNAME, DOMAIN)
+@cache
+def key():
+    """The instance RSA key, generated on first use (never at import)."""
+    return get_key(ID, USERNAME, DOMAIN)
 
-JWT_SECRET = get_secret_key("jwt")
-JWT = URLSafeTimedSerializer(JWT_SECRET)
+
+@cache
+def jwt() -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(get_secret_key("jwt"))
 
 
 def _admin_jwt_token() -> str:
-    return JWT.dumps({"me": "ADMIN", "ts": datetime.now(UTC).timestamp()})
+    return jwt().dumps({"me": "ADMIN", "ts": datetime.now(UTC).timestamp()})
 
 
-ADMIN_API_KEY = get_secret_key("admin_api_key", _admin_jwt_token)
+@cache
+def admin_api_key() -> str:
+    return get_secret_key("admin_api_key", _admin_jwt_token)
 
-ME = {
-    "@context": DEFAULT_CTX,
-    "type": "Person",
-    "id": ID,
-    "following": f"{ID}/following",
-    "followers": f"{ID}/followers",
-    "featured": f"{ID}/featured",
-    "liked": f"{ID}/liked",
-    "inbox": f"{ID}/inbox",
-    "outbox": f"{ID}/outbox",
-    "preferredUsername": USERNAME,
-    "name": NAME,
-    "summary": SUMMARY,
-    "endpoints": {},
-    "url": ID,
-    "manuallyApprovesFollowers": False,
-    "attachment": [],
-    "icon": {
-        "mediaType": mimetypes.guess_type(ICON_URL)[0],
-        "type": "Image",
-        "url": ICON_URL,
-    },
-    "publicKey": KEY.to_dict(),
-}
+
+@cache
+def flask_secret_key() -> str:
+    return get_secret_key("flask")
+
+
+@cache
+def me() -> dict:
+    """The local actor document, built on first use."""
+    return {
+        "@context": DEFAULT_CTX,
+        "type": "Person",
+        "id": ID,
+        "following": f"{ID}/following",
+        "followers": f"{ID}/followers",
+        "featured": f"{ID}/featured",
+        "liked": f"{ID}/liked",
+        "inbox": f"{ID}/inbox",
+        "outbox": f"{ID}/outbox",
+        "preferredUsername": USERNAME,
+        "name": NAME,
+        "summary": SUMMARY,
+        "endpoints": {},
+        "url": ID,
+        "manuallyApprovesFollowers": False,
+        "attachment": [],
+        "icon": {
+            "mediaType": mimetypes.guess_type(ICON_URL)[0],
+            "type": "Image",
+            "url": ICON_URL,
+        },
+        "publicKey": key().to_dict(),
+    }
+
+
+def __getattr__(name):
+    """Lazy compatibility aliases: Jinja templates use `config.ME.*`."""
+    if name == "VERSION":
+        return version()
+    if name == "KEY":
+        return key()
+    if name == "ME":
+        return me()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

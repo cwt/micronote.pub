@@ -6,26 +6,26 @@ from active_boxes.errors import ActivityUnavailableError
 from active_boxes.httpsig import _verify_bytes_rsa
 
 from micronote import activitypub
-from micronote.config import KEY, USER_AGENT
+from micronote.config import key, user_agent
 from micronote.utils.delivery import delivery_target, sign_fetch_request
 
 
 def test_sign_fetch_request_structure_and_signature():
     url = "https://bsd.network/users/thomasadam"
-    headers = sign_fetch_request(url, KEY, USER_AGENT)
+    headers = sign_fetch_request(url, key(), user_agent())
 
     assert headers["Host"] == "bsd.network"
-    assert headers["User-Agent"] == USER_AGENT
+    assert headers["User-Agent"] == user_agent()
     assert "Accept" in headers
     assert "Date" in headers
     assert "Signature" in headers
 
     sig_header = headers["Signature"]
-    assert f'keyId="{KEY.key_id()}"' in sig_header
+    assert f'keyId="{key().key_id()}"' in sig_header
     assert 'algorithm="rsa-sha256"' in sig_header
     assert 'headers="(request-target) host date accept"' in sig_header
 
-    # Extract signature part and verify cryptographically against KEY.pubkey
+    # Extract signature part and verify cryptographically against key().pubkey
     parts = dict(part.split("=", 1) for part in sig_header.split(","))
     sig_b64 = parts["signature"].strip('"')
     sig_bytes = base64.b64decode(sig_b64)
@@ -35,7 +35,7 @@ def test_sign_fetch_request_structure_and_signature():
         f"(request-target): get {target}\nhost: {headers['Host']}\ndate: {headers['Date']}\naccept: {headers['Accept']}"
     )
 
-    assert _verify_bytes_rsa(KEY.privkey.public_key(), expected_signed_string.encode("utf-8"), sig_bytes)
+    assert _verify_bytes_rsa(key().privkey.public_key(), expected_signed_string.encode("utf-8"), sig_bytes)
 
 
 def test_fetch_remote_iri_signed_success():

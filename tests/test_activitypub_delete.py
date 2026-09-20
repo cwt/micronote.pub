@@ -8,16 +8,16 @@ from micronote.activitypub import MicroblogPubBackend
 
 
 def test_outbox_delete_sets_meta_extra():
-    from micronote.config import ME
+    from micronote.config import me
 
     backend = MicroblogPubBackend()
     backend.DB = MagicMock()
     orig = ap.get_backend()
     ap.use_backend(backend)
     try:
-        person = ap.Person(**ME)
-        note = ap.Note(id=f"{ME['id']}/note/1", content="hello", attributedTo=ME["id"])
-        delete = ap.Delete(actor=ME["id"], object=note.to_dict())
+        person = ap.Person(**me())
+        note = ap.Note(id=f"{me()['id']}/note/1", content="hello", attributedTo=me()["id"])
+        delete = ap.Delete(actor=me()["id"], object=note.to_dict())
 
         backend._handle_replies_delete = MagicMock()
         backend.outbox_delete(person, delete)
@@ -34,7 +34,7 @@ def test_outbox_delete_sets_meta_extra():
 
 
 def test_delete_handlers_invoke_get_object_sync_once():
-    from micronote.config import ME
+    from micronote.config import me
 
     backend = MicroblogPubBackend()
     backend.DB = MagicMock()
@@ -42,8 +42,8 @@ def test_delete_handlers_invoke_get_object_sync_once():
     orig = ap.get_backend()
     ap.use_backend(backend)
     try:
-        person = ap.Person(**ME)
-        note = ap.Note(id=f"{ME['id']}/note/1", content="hello", attributedTo=ME["id"])
+        person = ap.Person(**me())
+        note = ap.Note(id=f"{me()['id']}/note/1", content="hello", attributedTo=me()["id"])
 
         # Outbox delete
         mock_outbox_delete = MagicMock()

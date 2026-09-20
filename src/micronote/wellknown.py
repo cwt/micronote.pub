@@ -13,12 +13,12 @@ from micronote.config import (
     DOMAIN,
     ICON_URL,
     ID,
-    KEY,
     NAME,
     SUMMARY,
     THEME_COLOR,
     USERNAME,
-    VERSION,
+    key,
+    version,
 )
 from micronote.web import page_cache
 
@@ -48,7 +48,7 @@ def nodeinfo():
             "version": "2.0",
             "software": {
                 "name": "micronote.pub",
-                "version": f"micronote.pub {VERSION}",
+                "version": f"micronote.pub {version()}",
             },
             "protocols": ["activitypub"],
             "services": {"inbound": [], "outbound": []},
@@ -144,7 +144,7 @@ def wellknown_webfinger():
                 "rel": "http://ostatus.org/schema/1.0/subscribe",
                 "template": f"{BASE_URL}/authorize_follow?profile={{uri}}",
             },
-            {"rel": "magic-public-key", "href": KEY.to_magic_key()},
+            {"rel": "magic-public-key", "href": key().to_magic_key()},
             {
                 "href": ICON_URL,
                 "rel": "http://webfinger.net/rel/avatar",

@@ -22,7 +22,7 @@ from active_boxes.linked_data_sig import generate_signature
 from requests.exceptions import HTTPError
 
 from micronote import activitypub, cache, tasks
-from micronote.config import BASE_URL, DB, ID, KEY, MEDIA_CACHE, USER_AGENT
+from micronote.config import BASE_URL, DB, ID, MEDIA_CACHE, key, user_agent
 from micronote.instance import MY_PERSON, back
 from micronote.jobs import enqueue_job
 from micronote.utils import opengraph
@@ -179,7 +179,7 @@ def fetch_og_metadata(job) -> None:
         if activity.has_type(ap.ActivityType.CREATE):
             note = activity.get_object_sync()
             links = opengraph.links_from_note(note.to_dict())
-            og_metadata = opengraph.fetch_og_metadata(USER_AGENT, links)
+            og_metadata = opengraph.fetch_og_metadata(user_agent(), links)
             for og in og_metadata:
                 if not og.get("image"):
                     continue
@@ -476,7 +476,7 @@ def post_to_remote_inbox(job) -> None:
         # Don't overwrite the signature if we're forwarding an activity
         if "signature" not in signed_payload:
             try:
-                generate_signature(signed_payload, KEY)
+                generate_signature(signed_payload, key())
             except Exception:
                 # Linked-data signing resolves the w3id identity context,
                 # which no longer dereferences; HTTP Signatures below still
@@ -484,7 +484,7 @@ def post_to_remote_inbox(job) -> None:
                 log.exception("LD signature failed, delivering with HTTP signature only")
 
         body = activitypub.json_dumps(signed_payload)
-        headers = sign_delivery_request(to, body, KEY, USER_AGENT)
+        headers = sign_delivery_request(to, body, key(), user_agent())
 
         log.info("to=%s", to)
         resp = requests.post(to, data=body, headers=headers, timeout=15)

@@ -11,7 +11,7 @@ from flask_wtf.csrf import CSRFProtect
 from itsdangerous import BadSignature
 from neosqlite import DESCENDING
 
-from micronote.config import DB, ID, JWT
+from micronote.config import DB, ID, jwt
 from micronote.utils.login import login_required
 
 blueprint = flask.Blueprint("indieauth", __name__, template_folder="templates")
@@ -191,7 +191,7 @@ def token_endpoint():
             "scope": scope,
             "ts": datetime.now(UTC).timestamp(),
         }
-        token = JWT.dumps(payload)
+        token = jwt().dumps(payload)
 
         return build_auth_resp({"me": me, "scope": scope, "access_token": token})
 
@@ -200,7 +200,7 @@ def token_endpoint():
     if not authorization.startswith("Bearer "):
         abort(403)
     try:
-        payload = JWT.loads(authorization.removeprefix("Bearer "))
+        payload = jwt().loads(authorization.removeprefix("Bearer "))
     except BadSignature:
         abort(403)
 

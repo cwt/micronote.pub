@@ -26,10 +26,10 @@ from micronote.config import (
     DB_NAME,
     EXTRA_INBOXES,
     ID,
-    KEY,
-    ME,
-    USER_AGENT,
     create_db_client,
+    key,
+    me,
+    user_agent,
 )
 from micronote.utils.delivery import sign_fetch_request
 from micronote.utils.emoji import extract_custom_emojis
@@ -118,7 +118,7 @@ def ensure_it_is_me(f):
 
     @wraps(f)
     def wrapper(*args, **kwargs):
-        if args[1].id != ME["id"]:
+        if args[1].id != me()["id"]:
             raise Error("unexpected actor")
         return f(*args, **kwargs)
 
@@ -137,7 +137,7 @@ class MicroblogPubBackend(Backend):
 
     def user_agent(self) -> str:
         """Setup a custom user agent."""
-        return USER_AGENT
+        return user_agent()
 
     def extra_inboxes(self) -> list[str]:
         return EXTRA_INBOXES
@@ -218,8 +218,8 @@ class MicroblogPubBackend(Backend):
         )
 
     def _fetch_iri(self, iri: str) -> ap.ObjectType | None:
-        if iri == ME["id"]:
-            return ME
+        if iri == me()["id"]:
+            return me()
 
         if iri == f"{ID}/followers":
             return {
@@ -259,9 +259,9 @@ class MicroblogPubBackend(Backend):
 
     async def _fetch_remote_iri(self, iri: str, **kwargs) -> ap.ObjectType:
         """Fetch remote IRI, signing request with HTTP Signatures for Authorized Fetch."""
-        if AUTHORIZED_FETCH and KEY and getattr(KEY, "privkey", None):
+        if AUTHORIZED_FETCH and key() and getattr(key(), "privkey", None):
             try:
-                headers = sign_fetch_request(iri, KEY, self.user_agent())
+                headers = sign_fetch_request(iri, key(), self.user_agent())
                 try:
                     await self.check_url(iri)
                 except URLLookupFailedError as url_err:
@@ -282,8 +282,8 @@ class MicroblogPubBackend(Backend):
 
     async def fetch_iri(self, iri: str, **kwargs) -> ap.ObjectType:
         logger.info(f"fetch_iri {iri!r}")
-        if iri == ME["id"]:
-            return ME
+        if iri == me()["id"]:
+            return me()
 
         if iri in ACTORS_CACHE:
             logger.info(f"{iri} found in cache")

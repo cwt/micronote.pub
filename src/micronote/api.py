@@ -15,16 +15,16 @@ from werkzeug.utils import secure_filename
 from micronote import activitypub, cache, feeds, repository, tasks
 from micronote.boxes import Box
 from micronote.config import (
-    ADMIN_API_KEY,
     BASE_URL,
     CDN_URL,
     DB,
     DEBUG_MODE,
     ID,
     IMAGE_MAX_SIZE,
-    JWT,
     MEDIA_CACHE,
+    admin_api_key,
     drop_db,
+    jwt,
 )
 from micronote.instance import MY_PERSON
 from micronote.utils.emoji import flexmoji
@@ -48,7 +48,7 @@ def require_api_auth():
         token = request.form.get("access_token", "")
 
     # Will raise a BadSignature on bad auth
-    payload = JWT.loads(token)
+    payload = jwt().loads(token)
     current_app.logger.info(f"api call by {payload}")
 
 
@@ -69,7 +69,7 @@ def api_required(f):
 @blueprint.route("/api/key")
 @login_required
 def api_user_key():
-    return flask_jsonify(api_key=ADMIN_API_KEY)
+    return flask_jsonify(api_key=admin_api_key())
 
 
 def _user_api_arg(key: str, **kwargs):
