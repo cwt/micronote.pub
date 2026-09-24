@@ -703,5 +703,37 @@ def _patch_validate_actor() -> None:
     BaseActivity._validate_actor = _validate_actor
 
 
+def _patch_http_client() -> None:
+    """Patches AsyncHTTPClient.get_json so ActivityNotFoundError, ActivityGoneError, etc. are not swallowed."""
+    from active_boxes.errors import (
+        ActivityGoneError,
+        ActivityNotFoundError,
+        ActivityUnavailableError,
+        NotAnActivityError,
+    )
+    from active_boxes.http_client import AsyncHTTPClient
+
+    original_get_json = AsyncHTTPClient.get_json
+
+    async def get_json(self, url: str, **kwargs):
+        try:
+            return await original_get_json(self, url, **kwargs)
+        except ActivityUnavailableError as exc:
+            context = exc.__context__
+            if isinstance(context, (ActivityGoneError, ActivityNotFoundError, NotAnActivityError)):
+                raise context from exc
+            msg = str(exc)
+            if "ActivityGoneError" in msg or "is gone" in msg:
+                raise ActivityGoneError(f"{url} is gone") from exc
+            if "ActivityNotFoundError" in msg or "is not found" in msg:
+                raise ActivityNotFoundError(f"{url} is not found") from exc
+            if "NotAnActivityError" in msg:
+                raise NotAnActivityError(f"{url} is not an activity") from exc
+            raise
+
+    AsyncHTTPClient.get_json = get_json
+
+
 _install_sync_cleanup_hook()
 _patch_validate_actor()
+_patch_http_client()

@@ -5,7 +5,7 @@ import logging
 
 from active_boxes import activitypub as ap
 from active_boxes.activitypub import ActivityType, _to_list, clean_activity, get_backend
-from active_boxes.errors import ActivityGoneError
+from active_boxes.errors import ActivityGoneError, ActivityUnavailableError
 from active_boxes.httpsig import verify_request_sync
 from flask import Blueprint, Response, abort, request
 from itsdangerous import BadSignature
@@ -203,18 +203,23 @@ def inbox():
     try:
         if not verify_request_sync(request.method, request.path, request.headers, request.data):
             raise Exception("failed to verify request")
-    except Exception:
-        log.exception("failed to verify request, trying to verify the payload by fetching the remote")
+    except Exception as err:
+        log.info(f"signature verification failed ({err}), attempting verification by dereferencing payload ID")
         try:
             data = get_backend().fetch_iri_sync(data["id"])
-        except ActivityGoneError:
+        except (ActivityGoneError, ActivityUnavailableError) as fetch_err:
             # XXX Mastodon sends Delete activities that are not dereferencable, it's the actor url with #delete
             # appended, so an `ActivityGoneError` kind of ensure it's "legit"
-            if (
+            is_actor_delete = (
                 data["type"] == ActivityType.DELETE.value
                 and isinstance(data.get("object"), str)
                 and data["id"].startswith(data["object"])
-            ):
+            )
+            is_gone = isinstance(fetch_err, ActivityGoneError) or (
+                isinstance(fetch_err, ActivityUnavailableError)
+                and ("ActivityGoneError" in str(fetch_err) or "is gone" in str(fetch_err))
+            )
+            if is_actor_delete and is_gone:
                 log.info(f"received a Delete for an actor {data!r}")
                 if get_backend().inbox_check_duplicate(MY_PERSON, data["id"]):
                     # The activity is already in the inbox
@@ -232,6 +237,13 @@ def inbox():
                 )
                 # TODO(tsileo): write the callback the the delete external actor event
                 return Response(status=201)
+
+            log.warning(f"failed to fetch remote id at {data['id']}: {fetch_err}")
+            return Response(
+                status=422,
+                headers={"Content-Type": "application/json"},
+                response=json.dumps({"error": "failed to verify request (using HTTP signatures or fetching the IRI)"}),
+            )
         except Exception:
             log.exception(f"failed to fetch remote id at {data['id']}")
             return Response(
