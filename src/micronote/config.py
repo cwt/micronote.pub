@@ -126,12 +126,25 @@ def create_db_connection():
     gets its own connection to the same file.
     """
     if getattr(_DB_CONNECTION, "connection", None) is None:
+        ttl_sweep_env = os.getenv("MICRONOTE_TTL_SWEEP_INTERVAL_S")
+        ttl_sweep = int(ttl_sweep_env) if ttl_sweep_env else None
         _DB_CONNECTION.connection = Connection(
             _db_path(DB_NAME),
             journal_mode=os.getenv("MICRONOTE_JOURNAL_MODE", "WAL"),
-            ttl_sweep_interval_s=int(os.getenv("MICRONOTE_TTL_SWEEP_INTERVAL_S", "60")),
+            ttl_sweep_interval_s=ttl_sweep,
         )
     return _DB_CONNECTION.connection
+
+
+def close_db_connection():
+    """Closes and unbinds the SQLite connection for the current thread."""
+    conn = getattr(_DB_CONNECTION, "connection", None)
+    if conn is not None:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        _DB_CONNECTION.connection = None
 
 
 def create_db_client(db_name):

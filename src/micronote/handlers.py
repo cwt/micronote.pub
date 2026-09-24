@@ -166,6 +166,8 @@ def process_new_activity(job) -> None:
             enqueue_job("cache_actor", iri=iri)
     except (ActivityGoneError, ActivityNotFoundError):
         log.exception(f"dropping activity {iri}, skip processing")
+    except ActivityUnavailableError as err:
+        log.warning(f"remote activity {iri} unavailable ({err}), skipping processing without retry")
     except Exception:
         log.exception(f"failed to process new activity {iri}")
         raise

@@ -26,6 +26,7 @@ from micronote.config import (
     DB_NAME,
     EXTRA_INBOXES,
     ID,
+    close_db_connection,
     create_db_client,
     key,
     me,
@@ -36,7 +37,7 @@ from micronote.utils.emoji import extract_custom_emojis
 
 logger = logging.getLogger(__name__)
 
-ACTORS_CACHE: LRUCache[str, Any] = LRUCache(maxsize=256)
+ACTORS_CACHE: LRUCache[str, Any] = LRUCache(maxsize=1024)
 AUTHORIZED_FETCH = strtobool(os.getenv("MICRONOTE_AUTHORIZED_FETCH", "true"))
 
 
@@ -254,6 +255,11 @@ class MicroblogPubBackend(Backend):
                 if data["meta"]["deleted"]:
                     raise ActivityGoneError(f"{iri} is gone")
                 return data["activity"]
+
+            # Also check if the IRI is an actor already cached in DB.actors
+            actor_doc = self.DB.actors.find_one({"remote_id": iri})
+            if actor_doc and actor_doc.get("data"):
+                return actor_doc["data"]
 
         return None
 
@@ -620,3 +626,82 @@ class MicroblogPubBackend(Backend):
                 {"box": Box.REPLIES.value, "remote_id": {"$in": new_threads}},
                 {"$set": {"meta.thread_root_parent": root_reply}},
             )
+
+
+def _install_sync_cleanup_hook() -> None:
+    """Ensures ephemeral threads spawned by active_boxes._sync close their DB connection."""
+    import asyncio
+    import concurrent.futures
+
+    import active_boxes._sync as sync_mod
+    import active_boxes.activitypub as ap_mod
+    import active_boxes.backend as be_mod
+    import active_boxes.http_client as hc_mod
+    import active_boxes.httpsig as hs_mod
+    import active_boxes.webfinger as wf_mod
+
+    def safe_run_sync(coro):
+        if not asyncio.iscoroutine(coro):
+            return coro
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError as exc:
+            if "no running event loop" in str(exc):
+                return asyncio.run(coro)
+            raise
+
+        def runner():
+            try:
+                return asyncio.run(coro)
+            finally:
+                close_db_connection()
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(runner).result()
+
+    for mod in (sync_mod, ap_mod, be_mod, hc_mod, hs_mod, wf_mod):
+        mod._run_sync = safe_run_sync
+
+
+def _patch_validate_actor() -> None:
+    """Patches BaseActivity._validate_actor to preserve ActivityUnavailableError and error details."""
+    from active_boxes.activitypub import (
+        ACTOR_TYPES,
+        BaseActivity,
+        _ensure_backend,
+        _has_type,
+        get_backend,
+    )
+    from active_boxes.errors import (
+        ActivityGoneError,
+        ActivityNotFoundError,
+        ActivityUnavailableError,
+        BadActivityError,
+        UnexpectedActivityTypeError,
+    )
+
+    def _validate_actor(self, obj) -> str:
+        _ensure_backend()
+        backend = get_backend()
+
+        obj_id = self._actor_id(obj)
+        try:
+            actor = backend.fetch_iri_sync(obj_id)
+        except (ActivityGoneError, ActivityNotFoundError, ActivityUnavailableError):
+            raise
+        except Exception as exc:
+            raise BadActivityError(f"failed to validate actor {obj!r}: {exc}") from exc
+
+        if not actor or "id" not in actor:
+            raise BadActivityError(f"invalid actor {actor}")
+
+        if not _has_type(actor["type"], ACTOR_TYPES):
+            raise UnexpectedActivityTypeError(f"actor has wrong type {actor['type']!r}")
+
+        return actor["id"]
+
+    BaseActivity._validate_actor = _validate_actor
+
+
+_install_sync_cleanup_hook()
+_patch_validate_actor()

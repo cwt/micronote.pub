@@ -136,12 +136,18 @@ def run() -> None:
                     if full_document.get("status") != STATUS_PENDING:
                         continue
                     swept_drain(limit=100)
+                # Drains due jobs and sweeps TTL when stream finishes or times out on idle
+                swept_drain(limit=100)
         except ValueError:
             log.exception("bad resume token, restarting from now")
             resume = None
         except Exception:
             log.exception("watch failed, retrying in 5s")
             time.sleep(5)
+            try:
+                swept_drain(limit=100)
+            except Exception:
+                pass
 
 
 def main() -> None:
