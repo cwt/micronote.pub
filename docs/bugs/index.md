@@ -6,7 +6,7 @@ status: stable
 verified: machine-confirmed
 stale_after: 2027-01-01T00:00:00Z
 tags: [bugs, tracking, index, quality-assurance]
-timestamp: 2026-09-20T00:00:00Z
+timestamp: 2026-10-02T00:00:00Z
 ---
 
 # Defect Tracking Registry
@@ -43,6 +43,7 @@ This index catalogs verified software defects, security vulnerabilities, and alg
 | [BUG-022](./022.md) | admin.html Receives Unused 'instances' Variable from Empty Collection Query | Low | Admin / Dead Code | Resolved |
 | [BUG-023](./023.md) | Pin/Unpin API Does Not Invalidate Page Cache, Serving Stale Homepage for 12h | Medium | Cache / API Consistency | Resolved |
 | [BUG-024](./024.md) | MY_PERSON and back Instantiated Three Times; api.back Silently Overrides app.back | Low | Module Init / Duplication | Resolved |
+| [BUG-025](./025.md) | YouTube Link Cards Missing — Consent-Gated Watch-Page Scrape Silently Drops og_metadata | Medium | Open Graph / Worker | Resolved |
 
 ## Active Defect Reports
 
@@ -55,7 +56,7 @@ This index catalogs verified software defects, security vulnerabilities, and alg
 **Resolved:**
 - **Critical:** 1 (BUG-010)
 - **High:** 8 (BUG-001, BUG-002, BUG-004, BUG-008, BUG-011, BUG-012, BUG-013, BUG-014)
-- **Medium:** 7 (BUG-003, BUG-005, BUG-007, BUG-017, BUG-018, BUG-021, BUG-023)
+- **Medium:** 8 (BUG-003, BUG-005, BUG-007, BUG-017, BUG-018, BUG-021, BUG-023, BUG-025)
 - **Low:** 8 (BUG-006, BUG-009, BUG-015, BUG-016, BUG-019, BUG-020, BUG-022, BUG-024)
 
 **Open:**

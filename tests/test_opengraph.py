@@ -5,7 +5,7 @@ from active_boxes.errors import ActivityUnavailableError, NotAnActivityError
 
 from micronote.handlers import fetch_og_metadata as worker_fetch_og_metadata
 from micronote.utils.lookup import lookup
-from micronote.utils.opengraph import fetch_og_metadata
+from micronote.utils.opengraph import _youtube_video_id, fetch_og_metadata
 
 
 def test_lookup_converts_non_json_activity_unavailable_to_not_an_activity():
@@ -102,6 +102,72 @@ def test_fetch_og_metadata_handles_broken_link_without_crashing_others():
         res = fetch_og_metadata("test-agent", [bad_link, good_link])
         assert len(res) == 1
         assert res[0]["title"] == "Good Page"
+
+
+def test_youtube_video_id_variants():
+    cases = {
+        "https://youtu.be/Obpa9bzpzvQ?si=xyz": "Obpa9bzpzvQ",
+        "https://youtu.be/Obpa9bzpzvQ": "Obpa9bzpzvQ",
+        "https://www.youtube.com/watch?v=Obpa9bzpzvQ": "Obpa9bzpzvQ",
+        "https://youtube.com/watch?si=x&v=Obpa9bzpzvQ&feature=youtu.be": "Obpa9bzpzvQ",
+        "https://www.youtube.com/shorts/Obpa9bzpzvQ": "Obpa9bzpzvQ",
+        "https://www.youtube.com/embed/Obpa9bzpzvQ": "Obpa9bzpzvQ",
+        "https://m.youtube.com/watch?v=Obpa9bzpzvQ": "Obpa9bzpzvQ",
+        "https://music.youtube.com/watch?v=Obpa9bzpzvQ": "Obpa9bzpzvQ",
+        "https://www.youtube.com/watch": None,
+        "https://www.youtube.com/playlist?list=PLabc": None,
+        "https://example.com/Obpa9bzpzvQ": None,
+        "https://youtu.be/xyz": None,
+    }
+    for url, expected in cases.items():
+        assert _youtube_video_id(url) == expected, url
+
+
+def test_fetch_og_metadata_youtube_uses_stable_endpoints():
+    link = "https://youtu.be/Obpa9bzpzvQ?si=sSvAXkYwKNXUDt2q"
+    mock_oembed = MagicMock()
+    mock_oembed.json.return_value = {
+        "title": "How to make a PVC DIY transverse flute - Tutorial",
+        "author_name": "Nicolas Bras",
+    }
+    mock_oembed.raise_for_status = MagicMock()
+
+    with (
+        patch("micronote.utils.opengraph.check_url"),
+        patch("micronote.utils.opengraph.requests.get", return_value=mock_oembed) as mock_get,
+    ):
+        res = fetch_og_metadata("test-agent", [link])
+
+    assert len(res) == 1
+    card = res[0]
+    assert card["url"] == "https://www.youtube.com/watch?v=Obpa9bzpzvQ"
+    assert card["image"] == "https://i.ytimg.com/vi/Obpa9bzpzvQ/hqdefault.jpg"
+    assert card["title"] == "How to make a PVC DIY transverse flute - Tutorial"
+    assert card["description"] == "Nicolas Bras"
+    assert card["site_name"] == "YouTube"
+    # Only the oEmbed endpoint is hit, never the consent-gated watch page.
+    mock_get.assert_called_once_with(
+        "https://www.youtube.com/oembed",
+        params={"url": "https://www.youtube.com/watch?v=Obpa9bzpzvQ", "format": "json"},
+        headers={"User-Agent": "test-agent"},
+        timeout=15,
+    )
+
+
+def test_fetch_og_metadata_youtube_fallback_when_oembed_down():
+    link = "https://www.youtube.com/watch?v=Obpa9bzpzvQ"
+    with (
+        patch("micronote.utils.opengraph.check_url"),
+        patch("micronote.utils.opengraph.requests.get", side_effect=Exception("oembed unreachable")),
+    ):
+        res = fetch_og_metadata("test-agent", [link])
+
+    # The thumbnail card is still produced without a title.
+    assert len(res) == 1
+    card = res[0]
+    assert card["title"] == "YouTube video"
+    assert card["description"] == ""
+    assert card["image"] == "https://i.ytimg.com/vi/Obpa9bzpzvQ/hqdefault.jpg"
 
 
 def test_worker_fetch_og_metadata_handles_unavailable_activity():
