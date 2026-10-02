@@ -96,12 +96,11 @@ def _youtube_card(video_id: str, user_agent: str) -> dict:
 
 
 def _youtube_channel(url: str) -> tuple[str, str] | None:
-    """Return (canonical_url, title) if `url` is a YouTube channel URL, else None.
+    """Return (canonical_url, fallback_title) if `url` is a YouTube channel URL, else None.
 
     Handles the ``/@handle``, ``/channel/<id>``, ``/user/<name>``, and
-    ``/c/<name>`` forms. Channel avatars and names are only available from
-    the consent-gated channel page, so this deliberately produces a text-only
-    card (title = handle or name when the URL carries one).
+    ``/c/<name>`` forms. The title is the handle or name when the URL carries
+    one, otherwise "YouTube channel".
     """
     parsed = urlparse(url)
     host = (parsed.hostname or "").lower()
@@ -116,13 +115,25 @@ def _youtube_channel(url: str) -> tuple[str, str] | None:
     return None
 
 
-def _youtube_channel_card(canonical: str, title: str) -> dict:
-    """Deterministic text-only link card for a YouTube channel.
+def _youtube_channel_card(canonical: str, title: str, user_agent: str) -> dict:
+    """Link card for a YouTube channel.
 
-    Channel pages are consent-gated like watch pages (no Open Graph tags from
-    a datacenter IP), and YouTube's oEmbed endpoint only supports video URLs,
-    so the card carries no image — the template renders it without a thumbnail.
+    Unlike the watch page, the channel page serves real Open Graph tags even
+    from a datacenter IP (verified on cwt-02), so scrape it for the channel
+    name, description, and avatar (``og:image`` — the square avatar, not the
+    banner). If the fetch fails or yields no ``og:url``, fall back to the
+    deterministic text-only card so the link still renders a card.
     """
+    try:
+        r = requests.get(canonical, headers={"User-Agent": user_agent}, timeout=15)
+        r.raise_for_status()
+        r.encoding = "UTF-8"
+        data = dict(opengraph.OpenGraph(html=BeautifulSoup(r.text, "html5lib")))
+        if data.get("url"):
+            return data
+    except Exception:
+        logger.debug(f"YouTube channel page unavailable for {canonical}, using fallback card")
+
     return {
         "url": canonical,
         "title": title,
@@ -144,7 +155,7 @@ def fetch_og_metadata(user_agent: str, links: set[str] | list[str]) -> list[dict
                 continue
             channel = _youtube_channel(link)
             if channel:
-                res.append(_youtube_channel_card(*channel))
+                res.append(_youtube_channel_card(*channel, user_agent))
                 continue
 
             # Remove any AP actor from the list

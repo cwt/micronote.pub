@@ -143,14 +143,51 @@ def test_youtube_channel_url_variants():
         assert _youtube_channel(url) == expected, url
 
 
-def test_fetch_og_metadata_youtube_channel_is_text_only():
+def test_fetch_og_metadata_youtube_channel_scrapes_page():
     link = "https://www.youtube.com/@babylon5"
+    html_content = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta property="og:title" content="Babylon 5">
+        <meta property="og:url" content="https://www.youtube.com/channel/UCwhFvS02GwuTx32B3RVKe8A">
+        <meta property="og:image" content="https://yt3.googleusercontent.com/F1HKaOra5ySW=s900-c-k">
+        <meta property="og:description" content="A neutral station">
+    </head>
+    <body>Hello</body>
+    </html>
+    """
+    mock_resp = MagicMock()
+    mock_resp.headers = {"content-type": "text/html; charset=utf-8"}
+    mock_resp.text = html_content
+    mock_resp.raise_for_status = MagicMock()
+
     with (
         patch("micronote.utils.opengraph.check_url"),
-        patch("micronote.utils.opengraph.requests.get") as mock_get,
+        patch("micronote.utils.opengraph.requests.get", return_value=mock_resp) as mock_get,
     ):
         res = fetch_og_metadata("test-agent", [link])
 
+    # The channel page (not oEmbed, not the watch page) is what gets scraped.
+    mock_get.assert_called_once_with(
+        "https://www.youtube.com/@babylon5", headers={"User-Agent": "test-agent"}, timeout=15
+    )
+    assert len(res) == 1
+    card = res[0]
+    assert card["title"] == "Babylon 5"
+    assert card["url"] == "https://www.youtube.com/channel/UCwhFvS02GwuTx32B3RVKe8A"
+    assert card["image"] == "https://yt3.googleusercontent.com/F1HKaOra5ySW=s900-c-k"
+
+
+def test_fetch_og_metadata_youtube_channel_fallback_when_page_unavailable():
+    link = "https://www.youtube.com/@babylon5"
+    with (
+        patch("micronote.utils.opengraph.check_url"),
+        patch("micronote.utils.opengraph.requests.get", side_effect=Exception("channel page unreachable")),
+    ):
+        res = fetch_og_metadata("test-agent", [link])
+
+    # The deterministic text-only card is still produced.
     assert len(res) == 1
     card = res[0]
     assert card["url"] == "https://www.youtube.com/@babylon5"
@@ -158,8 +195,6 @@ def test_fetch_og_metadata_youtube_channel_is_text_only():
     assert card["description"] == "YouTube channel"
     assert card["site_name"] == "YouTube"
     assert "image" not in card
-    # The channel card is fully deterministic: no oEmbed call, no page scrape.
-    mock_get.assert_not_called()
 
 
 def test_fetch_og_metadata_youtube_uses_stable_endpoints():
