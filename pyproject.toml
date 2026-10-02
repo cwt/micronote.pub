@@ -7,7 +7,7 @@ name = "micronote-pub"
 version = "0.1.0"
 description = "Self-hosted, single-user, ActivityPub-powered microblog"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.15"
 license = {text = "AGPL-3.0-or-later"}
 # Pins are intentional: this is a deployable app, not a library,
 # so reproducible installs matter more than flexible ranges.
