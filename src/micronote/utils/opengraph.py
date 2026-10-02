@@ -95,16 +95,56 @@ def _youtube_card(video_id: str, user_agent: str) -> dict:
     }
 
 
+def _youtube_channel(url: str) -> tuple[str, str] | None:
+    """Return (canonical_url, title) if `url` is a YouTube channel URL, else None.
+
+    Handles the ``/@handle``, ``/channel/<id>``, ``/user/<name>``, and
+    ``/c/<name>`` forms. Channel avatars and names are only available from
+    the consent-gated channel page, so this deliberately produces a text-only
+    card (title = handle or name when the URL carries one).
+    """
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    if host not in _YT_HOSTS or host == "youtu.be":
+        return None
+    segs = [s for s in parsed.path.split("/") if s]
+    if len(segs) == 1 and segs[0].startswith("@") and len(segs[0]) >= 3:
+        return f"https://www.youtube.com/{segs[0]}", segs[0]
+    if len(segs) == 2 and segs[0] in ("channel", "user", "c"):
+        title = segs[1] if segs[0] in ("user", "c") else "YouTube channel"
+        return f"https://www.youtube.com/{segs[0]}/{segs[1]}", title
+    return None
+
+
+def _youtube_channel_card(canonical: str, title: str) -> dict:
+    """Deterministic text-only link card for a YouTube channel.
+
+    Channel pages are consent-gated like watch pages (no Open Graph tags from
+    a datacenter IP), and YouTube's oEmbed endpoint only supports video URLs,
+    so the card carries no image — the template renders it without a thumbnail.
+    """
+    return {
+        "url": canonical,
+        "title": title,
+        "description": "YouTube channel",
+        "site_name": "YouTube",
+    }
+
+
 def fetch_og_metadata(user_agent: str, links: set[str] | list[str]) -> list[dict]:
     res = []
     for link in links:
         try:
             check_url(link)
 
-            # YouTube is consent-gated server-side; use its stable endpoints instead.
+            # YouTube is consent-gated server-side; use deterministic cards instead.
             video_id = _youtube_video_id(link)
             if video_id:
                 res.append(_youtube_card(video_id, user_agent))
+                continue
+            channel = _youtube_channel(link)
+            if channel:
+                res.append(_youtube_channel_card(*channel))
                 continue
 
             # Remove any AP actor from the list

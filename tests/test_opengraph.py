@@ -5,7 +5,7 @@ from active_boxes.errors import ActivityUnavailableError, NotAnActivityError
 
 from micronote.handlers import fetch_og_metadata as worker_fetch_og_metadata
 from micronote.utils.lookup import lookup
-from micronote.utils.opengraph import _youtube_video_id, fetch_og_metadata
+from micronote.utils.opengraph import _youtube_channel, _youtube_video_id, fetch_og_metadata
 
 
 def test_lookup_converts_non_json_activity_unavailable_to_not_an_activity():
@@ -121,6 +121,45 @@ def test_youtube_video_id_variants():
     }
     for url, expected in cases.items():
         assert _youtube_video_id(url) == expected, url
+
+
+def test_youtube_channel_url_variants():
+    cases = {
+        "https://www.youtube.com/@babylon5": ("https://www.youtube.com/@babylon5", "@babylon5"),
+        "https://youtube.com/@babylon5?tab=videos": ("https://www.youtube.com/@babylon5", "@babylon5"),
+        "https://m.youtube.com/@babylon5": ("https://www.youtube.com/@babylon5", "@babylon5"),
+        "https://www.youtube.com/channel/UCbYOzvigGQ4GsLfO9J2lY2g": (
+            "https://www.youtube.com/channel/UCbYOzvigGQ4GsLfO9J2lY2g",
+            "YouTube channel",
+        ),
+        "https://www.youtube.com/user/somebody": ("https://www.youtube.com/user/somebody", "somebody"),
+        "https://www.youtube.com/c/BrandName": ("https://www.youtube.com/c/BrandName", "BrandName"),
+        "https://www.youtube.com/watch?v=Obpa9bzpzvQ": None,
+        "https://www.youtube.com/playlist?list=PL123": None,
+        "https://youtu.be/Obpa9bzpzvQ": None,
+        "https://example.com/@notyoutube": None,
+    }
+    for url, expected in cases.items():
+        assert _youtube_channel(url) == expected, url
+
+
+def test_fetch_og_metadata_youtube_channel_is_text_only():
+    link = "https://www.youtube.com/@babylon5"
+    with (
+        patch("micronote.utils.opengraph.check_url"),
+        patch("micronote.utils.opengraph.requests.get") as mock_get,
+    ):
+        res = fetch_og_metadata("test-agent", [link])
+
+    assert len(res) == 1
+    card = res[0]
+    assert card["url"] == "https://www.youtube.com/@babylon5"
+    assert card["title"] == "@babylon5"
+    assert card["description"] == "YouTube channel"
+    assert card["site_name"] == "YouTube"
+    assert "image" not in card
+    # The channel card is fully deterministic: no oEmbed call, no page scrape.
+    mock_get.assert_not_called()
 
 
 def test_fetch_og_metadata_youtube_uses_stable_endpoints():
